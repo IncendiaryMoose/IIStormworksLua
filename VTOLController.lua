@@ -56,7 +56,7 @@ require('II_MathHelpers')
 require('II_SmallVectorMath')
 require('II_PIDController')
 require('II_IO')
-require('II_RenderEngine')
+-- require('II_RenderEngine')
 
 Z_PID_CONFIG = {
     PROPORTIONAL_GAIN = property.getNumber('Z P'),
@@ -117,6 +117,7 @@ currentRotation = IIVector()
 currentRotationMatrix = IIMatrix()
 currentUnitMatrix = IIMatrix()
 
+targetRotation = IIVector()
 targetRotationMatrix = IIMatrix()
 targetUnitMatrix = IIMatrix()
 
@@ -139,28 +140,6 @@ zRotationMatrix = IIMatrix()
 zRotation = IIVector()
 
 startupTimer = 0
-
----@section Display
--- camPos = IIVector(15, 12, 20)
--- camRot = IIVector(0, PI/4, math.atan(-12,-15))
--- camMatrix = IIMatrix()
--- camAxis = IIMatrix()
--- camMatrix:XYZRotationToZYXMatrix(camRot)
--- camAxis:transpose(camMatrix)
-
--- animationTick = 0
--- ANIMATION_TIME = 120
-
--- currentAxisDisplay = IIMatrix()
--- targetAxisDisplay = IIMatrix()
--- animationAxisDisplay = IIMatrix()
-
--- currentAxisDisplayPoints = IIMatrix()
--- targetAxisDisplayPoints = IIMatrix()
--- animationAxisDisplayPoints = IIMatrix()
-
--- DISPLAY_OFFSET = 0
----@endsection
 
 function onTick()
     clearOutputs()
@@ -259,36 +238,17 @@ function onTick()
         halfwayUnitMatrix[i]:setAdd(currentUnitMatrix[i])
         halfwayUnitMatrix[i]:setScale(0.5)
         halfwayUnitMatrix[i]:setScale(1 / halfwayUnitMatrix[i]:magnitude())
-
-        -- animationUnitMatrix[i]:copyVector(targetUnitMatrix[i])
-        -- animationUnitMatrix[i]:setAdd(currentUnitMatrix[i], -1)
-        -- animationUnitMatrix[i]:setScale(animationTick/ANIMATION_TIME)
-        -- animationUnitMatrix[i]:setAdd(currentUnitMatrix[i])
-        -- animationUnitMatrix[i]:setScale(1 / animationUnitMatrix[i]:magnitude())
     end
 
     halfwayRotationMatrix:transpose(halfwayUnitMatrix)
 
-    -- animationTick = (animationTick + 1) % ANIMATION_TIME
-    -- currentAxisDisplay:copyMatrix(currentUnitMatrix)
-    -- targetAxisDisplay:copyMatrix(targetUnitMatrix)
-    -- animationAxisDisplay:copyMatrix(animationUnitMatrix)
+    pitch = -arcsin(targetUnitMatrix[1][3])
 
-    -- for i = 1, 3 do
-        -- currentAxisDisplay[i]:setScale(10)
-
-        -- targetAxisDisplay[i]:setScale(10)
-
-        -- animationAxisDisplay[i]:setScale(10)
-    -- end
-
-    -- currentAxisDisplayPoints:copyMatrix(currentAxisDisplay)
-    -- targetAxisDisplayPoints:copyMatrix(targetAxisDisplay)
-    -- animationAxisDisplayPoints:copyMatrix(animationAxisDisplay)
-
-    -- currentAxisDisplayPoints[4] = IIVector()
-    -- targetAxisDisplayPoints[4] = IIVector()
-    -- animationAxisDisplayPoints[4] = IIVector()
+    targetRotation:setVector(
+        arccos(targetUnitMatrix[3][3] / math.cos(pitch)) * (targetUnitMatrix[2][3] < 0 and -1 or 1),
+        pitch,
+        math.atan(targetUnitMatrix[1][2], targetUnitMatrix[1][1])
+    )
 
     zRotation:setVector(0, 0, -currentRotation[3])
     zRotationMatrix:XYZRotationToZYXMatrix(zRotation)
@@ -318,21 +278,13 @@ function onTick()
         outputNumbers[outputIndex + 10] = -rotor.xPID.output * invert + currentRotation[2]/PI2
     end
 
+    for i = 1, 3 do
+        outputNumbers[16 + i] = currentRotation[i]
+
+        outputNumbers[19 + i] = targetRotation[i]
+    end
     setOutputs()
 end
 
 -- function onDraw()
-    -- currentScreenPoints = {}
-    -- targetScreenPoints = {}
-    -- animationScreenPoints = {}
-    -- worldToScreenPoint(camPos, camAxis, currentAxisDisplayPoints, currentScreenPoints)
-    -- worldToScreenPoint(camPos, camAxis, targetAxisDisplayPoints, targetScreenPoints)
-    -- worldToScreenPoint(camPos, camAxis, animationAxisDisplayPoints, animationScreenPoints)
-
-    -- for i = 1, 3 do
-        -- screen.setColor(i == 1 and 255 or 0, i == 2 and 255 or 0, i == 3 and 255 or 0)
-        -- screen.drawLine(currentScreenPoints[4][1] - DISPLAY_OFFSET, currentScreenPoints[4][2], currentScreenPoints[i][1] - DISPLAY_OFFSET, currentScreenPoints[i][2])
-        -- screen.drawLine(targetScreenPoints[4][1], targetScreenPoints[4][2], targetScreenPoints[i][1], targetScreenPoints[i][2])
-        -- screen.drawLine(animationScreenPoints[4][1] + DISPLAY_OFFSET, animationScreenPoints[4][2], animationScreenPoints[i][1] + DISPLAY_OFFSET, animationScreenPoints[i][2])
-    -- end
 -- end
