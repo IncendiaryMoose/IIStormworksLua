@@ -45,8 +45,8 @@ do
         simulator:setInputNumber(1, 0)
         simulator:setInputNumber(2, 0)
         simulator:setInputNumber(3, 0)
-        simulator:setInputNumber(4, (simulator:getSlider(3)+0.25) * math.pi*2)
-        simulator:setInputNumber(5, (simulator:getSlider(4)) * math.pi*2)
+        simulator:setInputNumber(17, (simulator:getSlider(1)) * math.pi*2)
+        simulator:setInputNumber(19, (simulator:getSlider(2)) * math.pi*2)
         simulator:setInputNumber(6, (simulator:getSlider(5)+0.25) * math.pi*2)
     end;
 end
@@ -75,13 +75,14 @@ targetRotation = IIVector()
 targetRotationMatrix = IIMatrix()
 targetUnitMatrix = IIMatrix()
 
+animationRotationMatrix = IIMatrix()
 animationUnitMatrix = IIMatrix()
 
 currentVelocity = IIVector()
 currentRotationalVelocity = IIVector()
 
-camPos = IIVector(15, 12, 20)
-camRot = IIVector(0, PI/4, math.atan(-12,-15))
+camPos = IIVector(-20, 0, 15)
+camRot = IIVector(0, PI/8, 0)
 camMatrix = IIMatrix()
 camAxis = IIMatrix()
 camMatrix:XYZRotationToZYXMatrix(camRot)
@@ -94,11 +95,47 @@ currentAxisDisplay = IIMatrix()
 targetAxisDisplay = IIMatrix()
 animationAxisDisplay = IIMatrix()
 
-currentAxisDisplayPoints = IIMatrix()
-targetAxisDisplayPoints = IIMatrix()
-animationAxisDisplayPoints = IIMatrix()
+currentAxisDisplayPoints = {
+    IIVector(),
+    IIVector(),
+    IIVector(),
+    IIVector(),
+    IIVector()
+}
 
-DISPLAY_OFFSET = 0
+targetAxisDisplayPoints = {
+    IIVector(),
+    IIVector(),
+    IIVector(),
+    IIVector(),
+    IIVector()
+}
+
+animationAxisDisplayPoints = {
+    IIVector(),
+    IIVector(),
+    IIVector(),
+    IIVector(),
+    IIVector()
+}
+
+DISPLAY_OFFSET = 75
+
+ARROW = {
+    IIVector(-5, 3, -3),
+    IIVector(-5, 3, 3),
+    IIVector(-5, -3, 3),
+    IIVector(-5, -3, -3),
+    IIVector(5, 0, 0)
+}
+
+arrow = {
+    IIVector(-5, 5, -5),
+    IIVector(-5, 5, 5),
+    IIVector(-5, -5, 5),
+    IIVector(-5, -5, -5),
+    IIVector(5, 0, 0)
+}
 
 function onTick()
     clearOutputs()
@@ -128,26 +165,17 @@ function onTick()
     end
 
     animationTick = (animationTick + 1) % ANIMATION_TIME
-    currentAxisDisplay:copyMatrix(currentUnitMatrix)
-    targetAxisDisplay:copyMatrix(targetUnitMatrix)
-    animationAxisDisplay:copyMatrix(animationUnitMatrix)
-
-    for i = 1, 3 do
-        currentAxisDisplay[i]:setScale(10)
-
-        targetAxisDisplay[i]:setScale(10)
-
-        animationAxisDisplay[i]:setScale(10)
+    animationRotationMatrix:transpose(animationUnitMatrix)
+    for i = 1, 5 do
+        currentAxisDisplayPoints[i]:copyVector(ARROW[i])
+        targetAxisDisplayPoints[i]:copyVector(ARROW[i])
+        animationAxisDisplayPoints[i]:copyVector(ARROW[i])
     end
-
-    currentAxisDisplayPoints:copyMatrix(currentAxisDisplay)
-    targetAxisDisplayPoints:copyMatrix(targetAxisDisplay)
-    animationAxisDisplayPoints:copyMatrix(animationAxisDisplay)
-
-    currentAxisDisplayPoints[4] = IIVector()
-    targetAxisDisplayPoints[4] = IIVector()
-    animationAxisDisplayPoints[4] = IIVector()
-
+    for i = 1, 5 do
+        currentAxisDisplayPoints[i]:matrixRotate(currentRotationMatrix)
+        targetAxisDisplayPoints[i]:matrixRotate(targetRotationMatrix)
+        animationAxisDisplayPoints[i]:matrixRotate(animationRotationMatrix)
+    end
     setOutputs()
 end
 
@@ -159,10 +187,49 @@ function onDraw()
     worldToScreenPoint(camPos, camAxis, targetAxisDisplayPoints, targetScreenPoints)
     worldToScreenPoint(camPos, camAxis, animationAxisDisplayPoints, animationScreenPoints)
 
-    for i = 1, 3 do
-        screen.setColor(i == 1 and 255 or 0, i == 2 and 255 or 0, i == 3 and 255 or 0)
-        screen.drawLine(currentScreenPoints[4][1] - DISPLAY_OFFSET, currentScreenPoints[4][2], currentScreenPoints[i][1] - DISPLAY_OFFSET, currentScreenPoints[i][2])
-        screen.drawLine(targetScreenPoints[4][1], targetScreenPoints[4][2], targetScreenPoints[i][1], targetScreenPoints[i][2])
-        screen.drawLine(animationScreenPoints[4][1] + DISPLAY_OFFSET, animationScreenPoints[4][2], animationScreenPoints[i][1] + DISPLAY_OFFSET, animationScreenPoints[i][2])
+    -- for i = 1, 4 do
+    --     screen.setColor((i == 1 or i == 4) and 255 or 0, (i == 2 or i == 4) and 255 or 0, (i == 3 or i == 4) and 255 or 0)
+    --     screen.drawLine(currentScreenPoints[5][1] - DISPLAY_OFFSET, currentScreenPoints[5][2], currentScreenPoints[i][1] - DISPLAY_OFFSET, currentScreenPoints[i][2])
+    --     screen.drawLine(targetScreenPoints[5][1], targetScreenPoints[5][2], targetScreenPoints[i][1], targetScreenPoints[i][2])
+    --     screen.drawLine(animationScreenPoints[5][1] + DISPLAY_OFFSET, animationScreenPoints[5][2], animationScreenPoints[i][1] + DISPLAY_OFFSET, animationScreenPoints[i][2])
+    -- end
+    -- 1,2,3
+    -- 3,4,1
+    -- 5,1,2
+    -- 5,2,3
+    -- 5,3,4
+    -- 5,4,1
+    for i = 1, 5 do
+        currentScreenPoints[i][1] = currentScreenPoints[i][1] - DISPLAY_OFFSET
+        targetScreenPoints[i][1] = targetScreenPoints[i][1] + DISPLAY_OFFSET
+    end
+    drawArrow3D(currentScreenPoints)
+    drawArrow3D(animationScreenPoints)
+    drawArrow3D(targetScreenPoints)
+end
+
+function drawArrow3D(screenPoints)
+    local drawTable = {}
+    for i = 1, 4 do
+        drawTable[#drawTable+1] = newTriangle(
+            screenPoints[5],
+            screenPoints[i],
+            screenPoints[i%4+1],
+            {(i == 1 or i == 4) and 255 or 0, (i == 2 or i == 4) and 255 or 0, (i == 3 or i == 4) and 255 or 0}
+        )
+    end
+    for i = 1, 3, 2 do
+        drawTable[#drawTable+1] = newTriangle(
+            screenPoints[i],
+            screenPoints[i + 1],
+            screenPoints[(i+2)%4],
+            {i == 1 and 0 or 255, i == 1 and 255 or 0, i == 1 and 255 or 125}
+        )
+    end
+    table.sort(drawTable, function (a, b)
+        return a[4] > b[4]
+    end)
+    for index, triangle in ipairs(drawTable) do
+        drawTri(triangle)
     end
 end
