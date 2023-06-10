@@ -137,6 +137,8 @@ arrow = {
     IIVector(5, 0, 0)
 }
 
+animationRotation = IIVector()
+
 function onTick()
     clearOutputs()
     currentPosition:setVector(input.getNumber(23), input.getNumber(24), input.getNumber(25))
@@ -165,7 +167,15 @@ function onTick()
     end
 
     animationTick = (animationTick + 1) % ANIMATION_TIME
-    animationRotationMatrix:transpose(animationUnitMatrix)
+
+	pitch = -arcsin(animationUnitMatrix[3][1])
+    animationRotation:setVector(
+        arccos(animationUnitMatrix[3][3] / math.cos(pitch)) * (animationUnitMatrix[3][2] < 0 and -1 or 1),
+        pitch,
+        math.atan(animationUnitMatrix[2][1], animationUnitMatrix[1][1])
+    )
+    -- animationRotationMatrix:transpose(animationUnitMatrix)
+    animationRotationMatrix:XYZRotationToZYXMatrix(animationRotation)
     for i = 1, 5 do
         currentAxisDisplayPoints[i]:copyVector(ARROW[i])
         targetAxisDisplayPoints[i]:copyVector(ARROW[i])
