@@ -18,7 +18,10 @@ do
     ---@type Simulator -- Set properties and screen sizes here - will run once when the script is loaded
     simulator = simulator
     simulator:setScreen(1, "3x3")
-    simulator:setProperty("ExampleNumberProperty", 123)
+    simulator:setProperty("Spin Time", 9)
+    simulator:setProperty("Spin Correction", 4)
+    simulator:setProperty("Minimum Distance", 9)
+    simulator:setProperty("Maximum Distance", 5000)
 
     -- Runs every tick just before onTick; allows you to simulate the inputs changing
     ---@param simulator Simulator Use simulator:<function>() to set inputs etc.
@@ -43,17 +46,91 @@ do
 end
 ---@endsection
 
+require('II_MathHelpers')
+require('II_SmallVectorMath')
+require('II_BinaryIO')
 
---[====[ IN-GAME CODE ]====]
-
--- try require("Folder.Filename") to include code from another file in this, so you can store code in libraries
--- the "LifeBoatAPI" is included by default in /_build/libs/ - you can use require("LifeBoatAPI") to get this, and use all the LifeBoatAPI.<functions>!
-
-ticks = 0
-function onTick()
-    ticks = ticks + 1
+function manage_list(listToManage, itemToAdd, maxItems)
+	table.insert(listToManage, itemToAdd)
+	if #listToManage > maxItems then
+		table.remove(listToManage, 1)
+	end
 end
 
-function onDraw()
-    screen.drawCircle(16,16,5)
+spinTime = property.getNumber('Spin Time')
+spinCorrection = property.getNumber('Spin Correction')
+minDist = property.getNumber('Minimum Distance')
+maxDist = property.getNumber('Maximum Distance')
+
+spinCounter = 0
+spin = 0
+facing = 0
+filterMassValues =
+{
+    12, 13, --Player (Technically 12.5)
+    20,   --Lifesaver
+    25,   --Player
+    30,
+    35,   --Fire Ext Prop
+    50,   --Pallet
+    80,   --Barrel
+    100,  --Fluid Crate, Propane, Large Propane
+    112, -- Small Fuel Gantry
+    125,  --Tool Cart
+    160, --Animal
+    175,  --Large Cart
+    180, --Animal
+    203, --Animal
+    300,  --Large Chest
+    320,  --Animal
+    347,  --Gas Gantry
+    397, -- Coal Gantry
+    400,  --Loot Crate
+    405,  --Animal
+    2499, --Container
+    2500,  --Tree
+    2623,  --Animal
+    4170, --Animal
+}
+
+excludeMasses = {}
+
+for index, value in ipairs(filterMassValues) do
+    excludeMasses[value] = true
+end
+
+oldFacings = {}
+
+function onTick()
+    spinCounter = (spinCounter + 1)%spinTime
+    spin = (spinCounter/spinTime) - 0.5
+    facing = spin * PI2
+    manage_list(oldFacings, facing, spinCorrection)
+
+    for i = 0, 7 do
+        local distance, targetPosition = input.getNumber(i*4+1), IIVector()
+        mass = IIfloor(distance * input.getNumber(i*4+2) + 0.5)
+        if not excludeMasses[mass] and distance >= minDist and distance <= maxDist then
+            local elevation, azimuth = input.getNumber(i*4+3)*PI2, input.getNumber(i*4+4)*PI2
+            azimuth = arcsin(math.sin(azimuth) / math.cos(elevation))
+            targetPosition:setVector(distance, oldFacings[1] + azimuth, elevation)
+            targetPosition:toCartesian()
+            targetPosition[3] = targetPosition[3] - 0.5
+        end
+        local massBinary, massMask, xBinary, yBinary, zBinary = floatToBinary(mass, 4, 12, -4, 1), 2^4 - 1
+        zBinary = floatToBinary(targetPosition[3], 4, 23, 0) << 27 | (massBinary & massMask)
+        massBinary = massBinary >> 4
+        yBinary = floatToBinary(targetPosition[2], 4, 23, 0) << 27 | (massBinary & massMask)
+        massBinary = massBinary >> 4
+        xBinary = floatToBinary(targetPosition[1], 4, 23, 0) << 27 | (massBinary & massMask)
+        massBinary = massBinary >> 4
+        for j = 1, 4 do
+            local bitMask = 1 << (4 - j)
+            output.setBool(j + i*4, massBinary & bitMask == bitMask)
+        end
+        output.setNumber(i*3 + 9, binaryToOutput(xBinary))
+        output.setNumber(i*3 + 10, binaryToOutput(yBinary))
+        output.setNumber(i*3 + 11, binaryToOutput(zBinary))
+    end
+    output.setNumber(1, spin)
 end
