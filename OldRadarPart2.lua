@@ -91,31 +91,71 @@ targets = {} -- Data stored at key 'mass' should be a list of all targets with t
 newTarget = function (initialPosition)
     return {
         position = IIVector(initialPosition:getVector()),
-        positionHistory = {},
         velocity = IIVector(),
         acceleration = IIVector(),
+        history = {},
         timeSinceLastSeen = 0,
         timesSeen = 0,
         threatScore = 0,
         newSighting = function (self, possibleSighting)
             if possibleSighting and self.timeSinceLastSeen > 0 then
-                if #self.positionHistory >= POSITION_MEMORY_LENGTH then
-                    table.remove(self.positionHistory, 1)
+
+                self.history[#self.history+1] = {
+                    self.timeSinceLastSeen,
+                    IIVector(possibleSighting:getVector())
+                }
+                if #self.history > 1 then
+                    self.velocity:setVector(possibleSighting:getVector())
+                    self.velocity:setAdd(self.history[#self.history - 1][2], -1)
+                    self.velocity:setScale(1/self.timeSinceLastSeen)
+                    self.history[#self.history][3] = IIVector(self.velocity:getVector())
+
+                    if #self.history > 2 then
+                        self.acceleration:setVector(self.velocity:getVector())
+                        self.acceleration:setAdd(self.history[#self.history - 1][3], -1)
+                        self.acceleration:setScale(1/self.timeSinceLastSeen)
+                        self.history[#self.history][4] = IIVector(self.acceleration:getVector())
+                    end
                 end
-                self.positionHistory[#self.positionHistory+1] = {IIVector(possibleSighting:getVector()), self.timeSinceLastSeen}
+
                 self.timeSinceLastSeen = 0
                 self.timesSeen = self.timesSeen + 1
+
                 return true
             end
             return false
         end,
         update = function (self)
-            self.position:setVector(self:getPositionInTicks(self.timeSinceLastSeen))
+            self:setPositionInTicks(self.timeSinceLastSeen)
             self.timeSinceLastSeen = self.timeSinceLastSeen + 1
         end,
-        getPositionInTicks = function (self, ticks)
-            self.position:setVector(self.positionHistory[#self.positionHistory]:getVector())
-            self.position:setAdd(self.velocity, ticks)
+        setPositionInTicks = function (self, ticks)
+            self.position:setVector(self.history[#self.history][2]:getVector())
+            if #self.history > 1 then
+                self.velocity:setVector(0, 0, 0)
+                self.acceleration:setVector(0, 0, 0)
+                local totalVelocityWeight, totalAccelerationWeight = 0, 0
+                for index, historyPoint in ipairs(self.history) do
+                    if historyPoint[3] then
+                        self.velocity:setAdd(historyPoint[3], index * 2)
+                        totalVelocityWeight = totalVelocityWeight + index * 2
+                    end
+                    if historyPoint[4] then
+                        self.acceleration:setAdd(historyPoint[4], index * 2)
+                        totalAccelerationWeight = totalAccelerationWeight + index * 2
+                    end
+                end
+                if totalVelocityWeight > 0 then
+                    self.velocity:setScale(1 / totalVelocityWeight)
+                end
+
+                if totalAccelerationWeight > 0 then
+                    self.acceleration:setScale(1 / totalAccelerationWeight)
+                end
+
+                self.position:setAdd(self.velocity, ticks)
+                self.position:setAdd(self.acceleration, ticks^2 / 2)
+            end
         end
     }
 end
@@ -124,6 +164,20 @@ radarPosition = IIVector()
 radarRotation = IIVector()
 
 newTargetPosition = IIVector()
+
+classes = {}
+track = {}
+attack = {}
+
+function applyMassSettings(settingString, classValue)
+    for massValue in string.gmatch(settingString, "(%d+)") do
+        classes[tonumber(massValue)] = tonumber(classValue)
+    end
+end
+
+applyMassSettings(property.getText('M1'), 0)
+applyMassSettings(property.getText('M2'), 2)
+applyMassSettings(property.getText('M3'), 2)
 
 SEARCH_PATTERN = { -- What order the radar scans in
 
@@ -134,9 +188,54 @@ MAX_TIME_UNSEEN = 100 -- How many ticks a target can remain unseen before it is 
 MASS_BITMASK = 2^4 - 1 -- Bitmask for the last 4 bits of a number, used in extracting the encoded mass values for each target
 POSITION_MEMORY_LENGTH = 10 -- How many past positions of a target to keep in memory
 
+SCREEN_HEIGHT = 160
+SCREEN_WIDTH = 288
+
+MAX_CLICK_DISTANCE = 20
+
+TARGET_COLORS = {
+    IIVector(0, 255, 0),
+    IIVector(0, 0, 255),
+    IIVector(255, 0, 0),
+    IIVector(255, 255, 255)
+}
+
+click = false
+
+--[[
+    External Control Signal:
+        Channel 7:
+            Bit 7: Track Friendly
+            Bit 8: Attack Friendly
+            Bit 9: Track Unkown
+            Bit 10: Attack Unkown
+            Bit 11: Track Hostile
+            Bit 12: Attack Hostile
+            Bit 13 - 14: Class to apply to next clicked target
+            Bit 15: Click
+            Bit 16 - 24: Click X
+            Bit 25 - 32: Click Y
+        Channel 8:
+            Bit 17 - 24: Zoom
+            Bit 25 - 32: Range
+]]--
+
 function onTick()
     radarPosition:setVector(input.getNumber(1), input.getNumber(2), input.getNumber(3))
     radarRotation:setVector(input.getNumber(1), input.getNumber(2), input.getNumber(3))
+
+    externalControlSignalA = inputToBinary(input.getNumber(7))
+    externalControlSignalB = inputToBinary(input.getNumber(8))
+
+    operation = externalControlSignalA >> 18 & 3
+    wasClicked = click
+    click = externalControlSignalA >> 17 & 1 == 1
+    clicked = click and not wasClicked
+    clickX = externalControlSignalA >> 8 & 2^9 - 1
+    clickY = externalControlSignalA & 2^8 - 1
+
+    zoom = binaryToFloat(externalControlSignalB >> 8, 3, 5, 3, 1) + 25
+    range = binaryToFloat(externalControlSignalB, 3, 5, 3, 1) * 2000 + 500
 
     newTargets = {}
     possibleMatches = {}
@@ -161,33 +260,35 @@ function onTick()
 
         local newTargetMass = binaryToFloat(massBinary, 4, 12, -4, 1)
 
-        newTargetPosition:setVector(
-            binaryToFloat(xBinary, 4, 23, 0),
-            binaryToFloat(yBinary, 4, 23, 0),
-            binaryToFloat(zBinary, 4, 23, 0)
-        )
-        newTargets[i] = {position = IIVector(newTargetPosition:getVector()), mass = newTargetMass}
+        if track[classes[newTargetMass]] then
 
-        if not targets[newTargetMass] then -- There are no currently tracked targets with this mass, so skip trying to match them
-            targets[newTargetMass] = {} -- Because this is the first target of this mass, initialize the category to store it later
-            goto TargetRegistered
-        end
+            newTargetPosition:setVector(
+                binaryToFloat(xBinary, 4, 23, 0),
+                binaryToFloat(yBinary, 4, 23, 0),
+                binaryToFloat(zBinary, 4, 23, 0)
+            )
+            newTargets[i] = {position = IIVector(newTargetPosition:getVector()), mass = newTargetMass}
 
-        if not possibleMatches[newTargetMass] then
-            possibleMatches[newTargetMass] = {}
-        end
+            if not targets[newTargetMass] then -- There are no currently tracked targets with this mass, so skip trying to match them
+                targets[newTargetMass] = {} -- Because this is the first target of this mass, initialize the category to store it later
+                goto TargetRegistered
+            end
 
-        for matchIndex, target in pairs(targets[newTargetMass]) do -- Loop through all currently tracked targets with the same mass as the new one
-            local matchDistance = target.position:distanceTo(newTargetPosition)
-            if matchDistance < WORST_MATCH_DISTANCE then
-                possibleMatches[newTargetMass][#possibleMatches[newTargetMass]+1] = {
-                    matchDistance = matchDistance,
-                    newTargetIndex = i,
-                    matchIndex = matchIndex
-                }
+            if not possibleMatches[newTargetMass] then
+                possibleMatches[newTargetMass] = {}
+            end
+
+            for matchIndex, target in pairs(targets[newTargetMass]) do -- Loop through all currently tracked targets with the same mass as the new one
+                local matchDistance = target.position:distanceTo(newTargetPosition)
+                if matchDistance < WORST_MATCH_DISTANCE then
+                    possibleMatches[newTargetMass][#possibleMatches[newTargetMass]+1] = {
+                        matchDistance = matchDistance,
+                        newTargetIndex = i,
+                        matchIndex = matchIndex
+                    }
+                end
             end
         end
-
         ::TargetRegistered::
     end
 
@@ -209,6 +310,9 @@ function onTick()
     for targetMass, targetMassGroup in pairs(newTargets) do
         for targetKey, target in pairs(targetMassGroup) do
             target:update()
+            if attack[classes[targetMass]] and radarPosition:distanceTo(target.position) < range then -- Check if target meets requirements for being fired upon
+                
+            end
             if target.timeSinceLastSeen > MAX_TIME_UNSEEN then
                 targets[targetMass][targetKey] = nil
             end
@@ -218,5 +322,34 @@ function onTick()
 end
 
 function onDraw()
-    screen.drawCircle(16,16,5)
+    worldClickX, worldClickY = map.screenToMap(radarPosition[1], radarPosition[2], zoom, SCREEN_WIDTH, SCREEN_HEIGHT, clickX, clickY)
+    nearestClickDistance = MAX_CLICK_DISTANCE
+    nearestClickedTargetMass = nil
+    for targetMass, targetMassGroup in pairs(newTargets) do
+        for targetKey, target in pairs(targetMassGroup) do
+            local positionScreenX, positionScreenY = map.mapToScreen(radarPosition[1], radarPosition[2], zoom, SCREEN_WIDTH, SCREEN_HEIGHT, target.position[1], target.position[2])
+            screen.setColor(TARGET_COLORS[targetMass]:getVector())
+            if debugMass then
+                screen.drawText(positionScreenX, positionScreenY, string.format('%.0f', target.mass))
+            else
+                screen.drawCircleF(positionScreenX, positionScreenY, IImax(IImin(target.mass/10000, 10), 2.5))
+            end
+            if userSelectedTargetKey and targetKey == userSelectedTargetKey then
+                screen.setColor(TARGET_COLORS[4]:getVector())
+                screen.drawCircle(positionScreenX, positionScreenY, IImax(IImin(target.mass/10000, 10), 2.5))
+            end
+            if clicked then
+                local clickDistance = ((positionScreenX - clickX)^2 + (positionScreenY - clickY)^2)^0.5
+                if clickDistance < nearestClickDistance then
+                    nearestClickDistance = clickDistance
+                    nearestClickedTargetMass = targetMass
+                    userSelectedTargetKey = targetKey
+                end
+            end
+        end
+    end
+
+    if clicked and operation > 0 and nearestClickedTargetMass then
+        classes[nearestClickedTargetMass] = operation
+    end
 end
