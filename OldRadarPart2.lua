@@ -270,12 +270,12 @@ function onTick()
             newTargets[i] = {position = IIVector(newTargetPosition:getVector()), mass = newTargetMass}
 
             if not targets[newTargetMass] then -- There are no currently tracked targets with this mass, so skip trying to match them
-                targets[newTargetMass] = {} -- Because this is the first target of this mass, initialize the category to store it later
+                targets[newTargetMass] = {} -- Because this is the first target of this mass, initialize the category it will be stored in
                 goto TargetRegistered
             end
 
             if not possibleMatches[newTargetMass] then
-                possibleMatches[newTargetMass] = {}
+                possibleMatches[newTargetMass] = {} -- Because this is the first new target of this mass, initialize the category it will be stored in
             end
 
             for matchIndex, target in pairs(targets[newTargetMass]) do -- Loop through all currently tracked targets with the same mass as the new one
@@ -296,9 +296,9 @@ function onTick()
         table.sort(targetMassGroup, function (a, b) -- Sort the possibleMatches by distance so that the best ones are tried first
             return a.matchDistance < b.matchDistance
         end)
-        for i, possibleMatch in ipairs(targetMassGroup) do -- Try applying matches, starting with the best one. If the match applies, the new target will be removed and the old one updated.
-            if targets[targetMass][possibleMatch.matchIndex]:newSighting(newTargets[possibleMatch.newTargetIndex]) then
-                newTargets[possibleMatch.newTargetIndex] = nil
+        for i, possibleMatch in ipairs(targetMassGroup) do -- Loop through the matches, starting with the best one. If the match applies, the new target will be removed and the old one updated
+            if targets[targetMass][possibleMatch.matchIndex]:newSighting(newTargets[possibleMatch.newTargetIndex]) then -- newSighting will update its parent and return true if the match is applied
+                newTargets[possibleMatch.newTargetIndex] = nil -- If the match applied, delete the new target to avoid creating a duplicate later
             end
         end
     end
@@ -311,9 +311,11 @@ function onTick()
         for targetKey, target in pairs(targetMassGroup) do
             target:update()
             if attack[classes[targetMass]] and radarPosition:distanceTo(target.position) < range then -- Check if target meets requirements for being fired upon
-                
+                -- Convert to local coords
+                -- It is better to shoot a target that is slightly less important than to constantly swap and never shoot, so only switch targets if the current one is wrong enough
+                -- Decide if any of the currently selected targets should be replaced with this one
             end
-            if target.timeSinceLastSeen > MAX_TIME_UNSEEN then
+            if target.timeSinceLastSeen > MAX_TIME_UNSEEN then -- If a target has not been seen for a long time, delete it
                 targets[targetMass][targetKey] = nil
             end
         end
@@ -328,17 +330,17 @@ function onDraw()
     for targetMass, targetMassGroup in pairs(newTargets) do
         for targetKey, target in pairs(targetMassGroup) do
             local positionScreenX, positionScreenY = map.mapToScreen(radarPosition[1], radarPosition[2], zoom, SCREEN_WIDTH, SCREEN_HEIGHT, target.position[1], target.position[2])
-            screen.setColor(TARGET_COLORS[targetMass]:getVector())
-            if debugMass then
+            screen.setColor(TARGET_COLORS[targetMass]:getVector()) -- Color the target based on what class it falls into
+            if debugMass then -- Use the mass of the target as the marker instead of a dot
                 screen.drawText(positionScreenX, positionScreenY, string.format('%.0f', target.mass))
             else
                 screen.drawCircleF(positionScreenX, positionScreenY, IImax(IImin(target.mass/10000, 10), 2.5))
             end
-            if userSelectedTargetKey and targetKey == userSelectedTargetKey then
+            if userSelectedTargetKey and targetKey == userSelectedTargetKey then -- Highlight if this is the user selected target
                 screen.setColor(TARGET_COLORS[4]:getVector())
                 screen.drawCircle(positionScreenX, positionScreenY, IImax(IImin(target.mass/10000, 10), 2.5))
             end
-            if clicked then
+            if clicked then -- If the user has clicked the screen, check if this is the target that was clicked
                 local clickDistance = ((positionScreenX - clickX)^2 + (positionScreenY - clickY)^2)^0.5
                 if clickDistance < nearestClickDistance then
                     nearestClickDistance = clickDistance
@@ -349,7 +351,7 @@ function onDraw()
         end
     end
 
-    if clicked and operation > 0 and nearestClickedTargetMass then
+    if clicked and operation > 0 and nearestClickedTargetMass then -- If a target was clicked while in class edit mode, change the target's class to the selected one
         classes[nearestClickedTargetMass] = operation
     end
 end
