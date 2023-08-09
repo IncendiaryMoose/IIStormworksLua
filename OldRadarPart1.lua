@@ -49,22 +49,9 @@ end
 require('II_MathHelpers')
 require('II_SmallVectorMath')
 require('II_BinaryIO')
+require('II_IO')
+require('OldRadarConstants')
 
-function manage_list(listToManage, itemToAdd, maxItems)
-	table.insert(listToManage, itemToAdd)
-	if #listToManage > maxItems then
-		table.remove(listToManage, 1)
-	end
-end
-
-spinTime = property.getNumber('Spin Time')
-spinCorrection = property.getNumber('Spin Correction')
-minDist = property.getNumber('Minimum Distance')
-maxDist = property.getNumber('Maximum Distance')
-
-spinCounter = 0
-spin = 0
-facing = 0
 filterMassValues =
 {
     12, 13, --Player (Technically 12.5)
@@ -98,39 +85,28 @@ excludeMasses = {}
 for index, value in ipairs(filterMassValues) do
     excludeMasses[value] = true
 end
-
-oldFacings = {}
-
 function onTick()
-    spinCounter = (spinCounter + 1)%spinTime
-    spin = (spinCounter/spinTime) - 0.5
-    facing = spin * PI2
-    manage_list(oldFacings, facing, spinCorrection)
-
+    clearOutputs()
     for i = 0, 7 do
-        local distance, targetPosition = input.getNumber(i*4+1), IIVector()
-        mass = IIfloor(distance * input.getNumber(i*4+2) + 0.5)
-        if not excludeMasses[mass] and distance >= minDist and distance <= maxDist then
-            local elevation, azimuth = input.getNumber(i*4+3)*PI2, input.getNumber(i*4+4)*PI2
+        local distance = input.getNumber(i*4+1)
+        if distance > MIN_DISTANCE and distance < -MIN_POSITION then
+            local targetPosition = IIVector()
+            local elevation, azimuth = input.getNumber(i*4+3)*PI2, -input.getNumber(i*4+4)*PI2
             azimuth = arcsin(math.sin(azimuth) / math.cos(elevation))
-            targetPosition:setVector(distance, oldFacings[1] + azimuth, elevation)
+            targetPosition:setVector(distance, azimuth, elevation)
             targetPosition:toCartesian()
             targetPosition[3] = targetPosition[3] - 0.5
+
+            local massInteger = floatToInteger(distance * input.getNumber(i*4+2), MIN_MASS, MASS_RANGE, MAX_MASS_INTEGER)
+
+            for j = 1, 4 do
+                local bitMask = 1 << (MASS_BITS - j)
+                outputBools[j + i*4] = massInteger & bitMask == bitMask
+            end
+            outputNumbers[i*3 +  9] = binaryToOutput(((massInteger >> (MASS_BITS - 5) & 1) << 31) | floatToInteger(targetPosition[1], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger >> MASS_BITS_PER_CHANNEL*2 & MASS_MASK))
+            outputNumbers[i*3 + 10] = binaryToOutput(((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL) & 1) << 31) | floatToInteger(targetPosition[2], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger >> MASS_BITS_PER_CHANNEL & MASS_MASK))
+            outputNumbers[i*3 + 11] = binaryToOutput(((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL*2) & 1) << 31) | floatToInteger(targetPosition[3], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger & MASS_MASK))
         end
-        local massBinary, massMask, xBinary, yBinary, zBinary = floatToBinary(mass, 4, 12, -4, 1), 2^4 - 1
-        zBinary = floatToBinary(targetPosition[3], 4, 23, 0) << 27 | (massBinary & massMask)
-        massBinary = massBinary >> 4
-        yBinary = floatToBinary(targetPosition[2], 4, 23, 0) << 27 | (massBinary & massMask)
-        massBinary = massBinary >> 4
-        xBinary = floatToBinary(targetPosition[1], 4, 23, 0) << 27 | (massBinary & massMask)
-        massBinary = massBinary >> 4
-        for j = 1, 4 do
-            local bitMask = 1 << (4 - j)
-            output.setBool(j + i*4, massBinary & bitMask == bitMask)
-        end
-        output.setNumber(i*3 + 9, binaryToOutput(xBinary))
-        output.setNumber(i*3 + 10, binaryToOutput(yBinary))
-        output.setNumber(i*3 + 11, binaryToOutput(zBinary))
     end
-    output.setNumber(1, spin)
+    setOutputs()
 end
