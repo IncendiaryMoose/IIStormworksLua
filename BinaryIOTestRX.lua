@@ -28,7 +28,7 @@ do
         -- touchscreen defaults
         local screenConnection = simulator:getTouchScreen(1)
         simulator:setInputBool(1, screenConnection.isTouched)
-        simulator:setInputNumber(1, screenConnection.width)
+        simulator:setInputNumber(1, binaryToOutput(2^28))
         simulator:setInputNumber(2, screenConnection.height)
         simulator:setInputNumber(3, screenConnection.touchX)
         simulator:setInputNumber(4, screenConnection.touchY)
@@ -47,8 +47,8 @@ require('II_BinaryIO')
 function onTick()
     encodedBits = input.getNumber(1)
     encodedStr = input.getNumber(2)
-    decodedBits = inputToBinary(encodedBits)
-    decodedStr = int30ToString(inputToBinary(encodedStr))
+    decodedBits = inputToBinary(1)
+    decodedStr = int30ToString(inputToBinary(2))
 end
 
 function onDraw()
@@ -59,5 +59,5 @@ function onDraw()
         str = str..((decodedBits & mask == mask) and '1' or '0')
     end
     screen.drawText(1, 33, 'Decoded String\n'..decodedStr)
-    screen.drawText(1, 49, 'Decoded Bits\n'..str)
+    screen.drawText(1, 49, 'Decoded Number: '..encodedBits..'\n'..str)
 end

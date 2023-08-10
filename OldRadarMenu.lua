@@ -66,66 +66,49 @@ whiteOff = {150,150,150}
 whiteOn = {200,200,200}
 
 buttonHeight = 10
-buttons = {}
-buttons.zoom = newSlider(1, 1, 196, 9, 5, 46, lightGrey, whiteOff, 'Zoom:', blueOn, blueOff, true)
-buttons.range = newSlider(1, SCREEN_HEIGHT - buttonHeight - 1, 196, 9, 5, 46, lightGrey, whiteOff, 'Range:', orangeOn, orangeOff, true)
-
+buttonGroups = {}
 toggleStart = 11
-buttons.trackCivilian = newSlider(3, toggleStart + buttonHeight, 13, 9, 5, 20, lightGrey, whiteOff, 'TRK:', greenOn, grey)
-buttons.attackCivilian = newSlider(3, toggleStart + buttonHeight * 2, 13, 9, 5, 20, lightGrey, whiteOff, 'ATK:', redOn, grey)
-buttons.addCivilian = newPulseButton(36, toggleStart + buttonHeight, 6, 19, greenOff, whiteOff, 'ADD', greenOn, whiteOn)
 
-buttons.trackUnknown = newSlider(3, toggleStart + buttonHeight * 4, 13, 9, 5, 20, lightGrey, whiteOff, 'TRK:', greenOn, grey)
-buttons.attackUnknown = newSlider(3, toggleStart + buttonHeight * 5, 13, 9, 5, 20, lightGrey, whiteOff, 'ATK:', redOn, grey)
-buttons.addUnkown = newPulseButton(36, toggleStart + buttonHeight * 4, 6, 19, yellowOff, whiteOff, 'ADD', yellowOn, whiteOn)
+buttonGroups[1] = {
+    newSlider(3, 21, 13, 9, 5, 20, lightGrey, whiteOff, 'TRK:', greenOn, grey),
+    newSlider(3, 51, 13, 9, 5, 20, lightGrey, whiteOff, 'TRK:', greenOn, grey),
+    newSlider(3, 81, 13, 9, 5, 20, lightGrey, whiteOff, 'TRK:', greenOn, grey),
+    newSlider(3, 31, 13, 9, 5, 20, lightGrey, whiteOff, 'ATK:', redOn, grey),
+    newSlider(3, 61, 13, 9, 5, 20, lightGrey, whiteOff, 'ATK:', redOn, grey),
+    newSlider(3, 91, 13, 9, 5, 20, lightGrey, whiteOff, 'ATK:', redOn, grey),
+    newPulseButton(36, 21, 6, 19, greenOff, whiteOff, 'ADD', greenOn, whiteOn),
+    newPulseButton(36, 51, 6, 19, yellowOff, whiteOff, 'ADD', yellowOn, whiteOn),
+    newPulseButton(36, 81, 6, 19, redOff, whiteOff, 'ADD', redOn, whiteOn),
+    newSlider(3, 120, 13, 9, 5, 25, lightGrey, whiteOff, 'CMBT:', orangeOn, grey),
+    newSlider(3, 130, 13, 9, 5, 25, lightGrey, whiteOff, 'MTRK:', orangeOn, grey),
+    newSlider(3, 140, 13, 9, 5, 25, lightGrey, whiteOff, 'AATK:', orangeOn, grey)
+}
 
-buttons.trackMilitary = newSlider(3, toggleStart + buttonHeight * 7, 13, 9, 5, 20, lightGrey, whiteOff, 'TRK:', greenOn, grey)
-buttons.attackMilitary = newSlider(3, toggleStart + buttonHeight * 8, 13, 9, 5, 20, lightGrey, whiteOff, 'ATK:', redOn, grey)
-buttons.addMilitary = newPulseButton(36, toggleStart + buttonHeight * 7, 6, 19, redOff, whiteOff, 'ADD', redOn, whiteOn)
+buttonGroups[2] = {
+    newSlider(1, 1, 196, 9, 5, 46, lightGrey, whiteOff, 'Zoom:', blueOn, blueOff, true),
+    newSlider(1, 149, 196, 9, 5, 46, lightGrey, whiteOff, 'Range:', orangeOn, orangeOff, true)
+}
 
-buttons.weld = newSlider(7, 105, 13, 9, 5, 20, lightGrey, whiteOff, 'WLD:', paleBlueOn, grey)
-buttons.sprinkle = newSlider(7, 105 + buttonHeight, 13, 9, 5, 20, lightGrey, whiteOff, 'EXT:', paleBlueOn, grey)
+buttonGroups[9] = {
+    newSlider(SCREEN_WIDTH - 41, 94, 13, 9, 5, 25, lightGrey, whiteOff, 'WELD:', paleBlueOn, grey),
+    newSlider(SCREEN_WIDTH - 41, 104, 13, 9, 5, 25, lightGrey, whiteOff, 'EXTN:', paleBlueOn, grey),
+    newSlider(SCREEN_WIDTH - 41, 118, 13, 9, 5, 25, lightGrey, whiteOff, 'CAMS:', purpleOn, grey),
+    newSlider(SCREEN_WIDTH - 41, 128, 13, 9, 5, 25, lightGrey, whiteOff, 'SCRN:', purpleOn, grey),
+    newSlider(SCREEN_WIDTH - 41, 138, 13, 9, 5, 25, lightGrey, whiteOff, 'MASS:', purpleOn, grey),
+    newSlider(SCREEN_WIDTH - 41, 148, 13, 9, 5, 25, lightGrey, whiteOff, 'DBG:', purpleOn, grey)
+}
 
-buttons.combat = newSlider(3, 130, 13, 9, 5, 25, lightGrey, whiteOff, 'CMBT:', orangeOn, grey)
-buttons.autoAttack = newSlider(3, 130 + buttonHeight, 13, 9, 5, 25, lightGrey, whiteOff, 'AATK:', orangeOn, grey)
 
-screenControlls = {}
-screenControlls.camView = newSlider(SCREEN_WIDTH - 41, 118, 13, 9, 5, 25, lightGrey, whiteOff, 'CAMS:', purpleOn, grey)
-screenControlls.massView = newSlider(SCREEN_WIDTH - 41, 128, 13, 9, 5, 25, lightGrey, whiteOff, 'MASS:', purpleOn, grey)
-screenControlls.adjustScreen = newSlider(SCREEN_WIDTH - 41, 138, 13, 9, 5, 25, lightGrey, whiteOff, 'SCRN:', purpleOn, grey)
-screenControlls.debug = newSlider(SCREEN_WIDTH - 41, 148, 13, 9, 5, 25, lightGrey, whiteOff, 'DBG:', purpleOn, grey)
-
-buttons.trackCivilian.pressed = true
-buttons.trackUnknown.pressed = true
-buttons.trackMilitary.pressed = true
-buttons.attackMilitary.pressed = true
-
-buttons.zoom.onPercent = 0.1
-screenControlls.adjustScreen.pressed = true
+buttonGroups[1][1].pressed = true
+buttonGroups[1][2].pressed = true
+buttonGroups[1][3].pressed = true
+buttonGroups[1][6].pressed = true
+buttonGroups[2][1].onPercent = 0.1
+zoom = buttonGroups[2][1].onPercent * ZOOM_RANGE + MIN_ZOOM
+range = buttonGroups[2][2].onPercent * RANGE_RANGE + MIN_RANGE
+buttonGroups[9][4].pressed = true
 
 click = false
-zoom = 5
-range = 500
-
---[[
-    External Control Signal:
-        Channel 7:
-            Bit 28: Combat
-            Bit 27: Auto Attack
-            Bit 26: Track Friendly
-            Bit 25: Attack Friendly
-            Bit 24: Track Unkown
-            Bit 23: Attack Unkown
-            Bit 22: Track Hostile
-            Bit 21: Attack Hostile
-            Bit 19 - 20: Class to apply to next clicked target
-            Bit 18: Click
-            Bit 9 - 17: Click X
-            Bit 1 - 8: Click Y
-        Channel 8:
-            Bit 9 - 16: Zoom
-            Bit 1 - 8: Range
-]]--
 
 function onTick()
     clickX = input.getNumber(3)
@@ -133,36 +116,24 @@ function onTick()
     wasClick = click
     click = input.getBool(1)
 
-    for b, button in pairs(buttons) do
-        button:updateTick(click, wasClick, clickX, clickY)
-    end
-    for b, button in pairs(screenControlls) do
-        button:updateTick(click, wasClick, clickX, clickY)
-    end
-
-
     externalControlSignalA = (click and clickX > 45 and clickX < SCREEN_WIDTH-45 and 1 << 17 or 0) | clickX << 8 | clickY
     externalControlSignalB = floatToInteger(zoom, MIN_ZOOM, ZOOM_RANGE, MAX_ZOOM_INTEGER) << 8 | floatToInteger(range, MIN_RANGE,  RANGE_RANGE, MAX_RANGE_INTEGER)
 
-    externalControlSignalA = externalControlSignalA | (buttons.combat.pressed and 1 << 27 or 0)
-    externalControlSignalA = externalControlSignalA | (buttons.autoAttack.pressed and 1 << 26 or 0)
-    externalControlSignalA = externalControlSignalA | (buttons.trackCivilian.pressed and 1 << 25 or 0)
-    externalControlSignalA = externalControlSignalA | (buttons.attackCivilian.pressed and 1 << 24 or 0)
-    externalControlSignalA = externalControlSignalA | (buttons.trackUnknown.pressed and 1 << 23 or 0)
-    externalControlSignalA = externalControlSignalA | (buttons.attackUnknown.pressed and 1 << 22 or 0)
-    externalControlSignalA = externalControlSignalA | (buttons.trackMilitary.pressed and 1 << 21 or 0)
-    externalControlSignalA = externalControlSignalA | (buttons.attackMilitary.pressed and 1 << 20 or 0)
-    externalControlSignalA = externalControlSignalA | ((buttons.addCivilian.pressed and 1 or buttons.addUnkown.pressed and 2 or buttons.addMilitary.pressed and 3 or 0) << 18)
-    -- externalControlSignalA = externalControlSignalA | (screenControlls.massView.pressed
+    for buttonIndex, button in ipairs(buttonGroups[1]) do
+        externalControlSignalA = externalControlSignalA | (button.pressed and 1 << (17 + buttonIndex) or 0)
+    end
+
+    externalControlSignalA = externalControlSignalA | (input.getBool(3) and 1 << 31 or 0)
+    -- externalControlSignalA = externalControlSignalA | (screenControls.massView.pressed
     -- outputBits[26] = input.getBool(3)
     output.setNumber(1, binaryToOutput(externalControlSignalA))
     output.setNumber(2, binaryToOutput(externalControlSignalB))
-    output.setBool(1, buttons.combat.pressed)
-    output.setBool(2, screenControlls.adjustScreen.pressed)
-    output.setBool(3, screenControlls.debug.pressed)
-    output.setBool(4, buttons.weld.pressed)
-    output.setBool(5, buttons.sprinkle.pressed)
-    output.setBool(6, screenControlls.camView.pressed)
+    output.setBool(1, buttonGroups[1][10].pressed)
+    output.setBool(4, buttonGroups[9][1].pressed)
+    output.setBool(5, buttonGroups[9][2].pressed)
+    output.setBool(6, buttonGroups[9][3].pressed)
+    output.setBool(2, buttonGroups[9][4].pressed)
+    output.setBool(3, buttonGroups[9][6].pressed)
 end
 
 function onDraw()
@@ -179,41 +150,45 @@ function onDraw()
     screen.setColor(15, 15, 25)
     screen.drawRectF(SCREEN_WIDTH - 45, 0, 45, SCREEN_HEIGHT)
 
-    if not screenControlls.camView.pressed then
+    if not buttonGroups[9][3].pressed then
         screen.drawRectF(0, 0, 45, SCREEN_HEIGHT)
+
         setDrawColor(greenOff)
         screen.drawRect(1, toggleStart + 8, 42, 22)
+
         setDrawColor(yellowOff)
         screen.drawRect(1, toggleStart + 38, 42, 22)
+
         setDrawColor(redOff)
         screen.drawRect(1, toggleStart + 68, 42, 22)
-        setDrawColor(paleBlueOff)
-        screen.drawRect(1, 103, 42, 22)
+
         setDrawColor(orangeOff)
-        screen.drawRect(1, 128, 42, 30)
-        for b, button in pairs(buttons) do
-            button:updateDraw()
+        screen.drawRect(1, 118, 42, 40)
+        for B, buttonGroup in ipairs(buttonGroups) do
+            for b, button in ipairs(buttonGroup) do
+                button:update(click, wasClick, clickX, clickY)
+            end
         end
-        zoom = buttons.zoom.onPercent * ZOOM_RANGE + MIN_ZOOM
-        range = buttons.range.onPercent * RANGE_RANGE + MIN_RANGE
-        buttons.trackCivilian.pressed = buttons.trackCivilian.pressed or buttons.attackCivilian.pressed and buttons.attackCivilian.stateChange
-        buttons.attackCivilian.pressed = buttons.attackCivilian.pressed and buttons.trackCivilian.pressed
+        zoom = buttonGroups[2][1].onPercent * ZOOM_RANGE + MIN_ZOOM
+        range = buttonGroups[2][2].onPercent * RANGE_RANGE + MIN_RANGE
+        for i = 1, 3 do
+            buttonGroups[1][i].pressed = buttonGroups[1][i].pressed or buttonGroups[1][i+3].pressed and buttonGroups[1][i+3].stateChange
+            buttonGroups[1][i+3].pressed = buttonGroups[1][i+3].pressed and buttonGroups[1][i].pressed
+        end
 
-        buttons.trackUnknown.pressed = buttons.trackUnknown.pressed or buttons.attackUnknown.pressed and buttons.attackUnknown.stateChange
-        buttons.attackUnknown.pressed = buttons.attackUnknown.pressed and buttons.trackUnknown.pressed
-
-        buttons.trackMilitary.pressed = buttons.trackMilitary.pressed or buttons.attackMilitary.pressed and buttons.attackMilitary.stateChange
-        buttons.attackMilitary.pressed = buttons.attackMilitary.pressed and buttons.trackMilitary.pressed
         setDrawColor(whiteOff)
         screen.drawText(1, toggleStart + 2, 'FRIENDLY:')
         screen.drawText(1, toggleStart + 2 + buttonHeight * 3, 'UNKNOWN:')
         screen.drawText(1, toggleStart + 2 + buttonHeight * 6, 'HOSTILE:')
     end
 
+    setDrawColor(paleBlueOff)
+    screen.drawRect(SCREEN_WIDTH - 44, 92, 42, 22)
+
     setDrawColor(purpleOff)
     screen.drawRect(SCREEN_WIDTH - 44, 116, 42, 42)
-    for b, button in pairs(screenControlls) do
-        button:updateDraw()
+    for b, button in ipairs(buttonGroups[9]) do
+        button:update(click, wasClick, clickX, clickY)
     end
 
 end

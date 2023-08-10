@@ -33,31 +33,39 @@ do
         simulator:setInputNumber(4, 0)
 
 
-        local massInteger = floatToInteger(2000, MIN_MASS, MASS_RANGE, MAX_MASS_INTEGER)
-        targetPosition = {ticks%200, 0, 0}
-        for j = 1, 4 do
-            local bitMask = 1 << (MASS_BITS - j)
-            simulator:setInputBool(j, massInteger & bitMask == bitMask)
+        local MassInteger = floatToInteger(2000, MIN_MASS, MASS_RANGE, MAX_MASS_INTEGER)
+        TargetPosition = {600, 0, 0}
+        if pastRadarFacing == 0 then
+            for J = 1, 4 do
+                local BitMask = 1 << (MASS_BITS - J)
+                simulator:setInputBool(J, MassInteger & BitMask == BitMask)
+            end
+            simulator:setInputNumber(9, binaryToOutput(((MassInteger >> (MASS_BITS - 5) & 1) << 31) | floatToInteger(TargetPosition[1], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (MassInteger >> MASS_BITS_PER_CHANNEL*2 & MASS_MASK)))
+            simulator:setInputNumber(10, binaryToOutput(((MassInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL) & 1) << 31) | floatToInteger(TargetPosition[2], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (MassInteger >> MASS_BITS_PER_CHANNEL & MASS_MASK)))
+            simulator:setInputNumber(11, binaryToOutput(((MassInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL*2) & 1) << 31) | floatToInteger(TargetPosition[3], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (MassInteger & MASS_MASK)))
+        else
+            for J = 1, 4 do
+                simulator:setInputBool(J, false)
+            end
+            simulator:setInputNumber(9,  0)
+            simulator:setInputNumber(10, 0)
+            simulator:setInputNumber(11, 0)
         end
-        simulator:setInputNumber(9, binaryToOutput(((massInteger >> (MASS_BITS - 5) & 1) << 31) | floatToInteger(targetPosition[1], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger >> MASS_BITS_PER_CHANNEL*2 & MASS_MASK)))
-        simulator:setInputNumber(10, binaryToOutput(((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL) & 1) << 31) | floatToInteger(targetPosition[2], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger >> MASS_BITS_PER_CHANNEL & MASS_MASK)))
-        simulator:setInputNumber(11, binaryToOutput(((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL*2) & 1) << 31) | floatToInteger(targetPosition[3], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger & MASS_MASK)))
-
 
         Click = screenConnection.isTouched
-        clickX = screenConnection.touchX
-        clickY = screenConnection.touchY
-        externalControlSignalA = (Click and clickX > 45 and clickX < SCREEN_WIDTH-45 and 1 << 17 or 0) | clickX << 8 | clickY
-        externalControlSignalB = floatToInteger(simulator:getSlider(1) + MIN_ZOOM, MIN_ZOOM, ZOOM_RANGE, MAX_ZOOM_INTEGER) << 8 | floatToInteger(simulator:getSlider(1) + MIN_RANGE, MIN_RANGE,  RANGE_RANGE, MAX_RANGE_INTEGER)
-
-        externalControlSignalA = externalControlSignalA | (1 << 25)
-        externalControlSignalA = externalControlSignalA | (1 << 24)
-        externalControlSignalA = externalControlSignalA | (1 << 23)
-        externalControlSignalA = externalControlSignalA | (1 << 22)
-        externalControlSignalA = externalControlSignalA | (1 << 21)
-        externalControlSignalA = externalControlSignalA | (1 << 20)
-        simulator:setInputNumber(7, binaryToOutput(externalControlSignalA))
-        simulator:setInputNumber(8, binaryToOutput(externalControlSignalB))
+        ClickX = screenConnection.touchX
+        ClickY = screenConnection.touchY
+        ExternalControlSignalA = (Click and ClickX > 45 and ClickX < SCREEN_WIDTH-45 and 1 << 17 or 0) | ClickX << 8 | ClickY
+        ExternalControlSignalB = floatToInteger(simulator:getSlider(1) * ZOOM_RANGE + MIN_ZOOM, MIN_ZOOM, ZOOM_RANGE, MAX_ZOOM_INTEGER) << 8 | floatToInteger(simulator:getSlider(2) * RANGE_RANGE + MIN_RANGE, MIN_RANGE,  RANGE_RANGE, MAX_RANGE_INTEGER)
+        -- print(simulator:getSlider(1))
+        ExternalControlSignalA = ExternalControlSignalA | (1 << 25)
+        ExternalControlSignalA = ExternalControlSignalA | (1 << 24)
+        ExternalControlSignalA = ExternalControlSignalA | (1 << 23)
+        ExternalControlSignalA = ExternalControlSignalA | (1 << 22)
+        ExternalControlSignalA = ExternalControlSignalA | (1 << 21)
+        ExternalControlSignalA = ExternalControlSignalA | (1 << 20)
+        simulator:setInputNumber(7, binaryToOutput(ExternalControlSignalA))
+        simulator:setInputNumber(8, binaryToOutput(ExternalControlSignalB))
     end;
 end
 ---@endsection
@@ -105,105 +113,19 @@ require('II_MathHelpers')
 require('II_BinaryIO')
 require('II_SmallVectorMath')
 require('OldRadarConstants')
+require('OldRadarTarget')
 
-targets = {} -- Data stored at key 'mass' should be a list of all targets with that mass
-
-newTarget = function (target)
-    return {
-        {
-            0,
-            target[3]:cloneVector(),
-            IIVector(),
-            IIVector()
-        },
-        position = target[3]:cloneVector(),
-        localPosition = target[2]:cloneVector(),
-        velocity = IIVector(),
-        acceleration = IIVector(),
-        timeSinceLastSeen = 0,
-        -- timesSeen = 0,
-        newSighting = function (self, newTargetIndex)
-            local possibleSighting = newTargets[newTargetIndex]
-            if possibleSighting and self.timeSinceLastSeen > 0 then
-
-                self.localPosition:copyVector(possibleSighting[2])
-
-                self[#self+1] = {
-                    self.timeSinceLastSeen,
-                    possibleSighting[3]:cloneVector(),
-                    IIVector(),
-                    IIVector()
-                }
-                if #self > 1 then
-                    self.velocity:copyVector(possibleSighting[3])
-                    self.velocity:setAdd(self[#self - 1][2], -1)
-                    self.velocity:setScale(1/self.timeSinceLastSeen)
-                    self[#self][3]:copyVector(self.velocity)
-
-                    if #self > 3 then
-                        self.acceleration:copyVector(self.velocity)
-                        self.acceleration:setAdd(self[#self - 1][3], -1)
-                        self.acceleration:setScale(1/self.timeSinceLastSeen)
-                        self[#self][4]:copyVector(self.acceleration)
-                    end
-                end
-
-                self.timeSinceLastSeen = 0
-                -- self.timesSeen = self.timesSeen + 1
-                newTargets[newTargetIndex] = nil
-            end
-        end,
-        update = function (self, radar)
-            self.position:copyVector(self[#self][2])
-            if #self > 1 then
-                self.velocity:setVector(0, 0, 0)
-                self.acceleration:setVector(0, 0, 0)
-                local totalVelocityWeight, totalAccelerationWeight = 0, 0
-                for index, historyPoint in ipairs(self) do
-                    if historyPoint[3] then
-                        self.velocity:setAdd(historyPoint[3], index * 2)
-                        totalVelocityWeight = totalVelocityWeight + index * 2
-                    end
-                    if historyPoint[4] then
-                        self.acceleration:setAdd(historyPoint[4], index * 2)
-                        totalAccelerationWeight = totalAccelerationWeight + index * 2
-                    end
-                end
-
-                self.velocity:setScale(1 / (totalVelocityWeight > 0 and totalVelocityWeight or 1))
-
-                self.acceleration:setScale(1 / (totalAccelerationWeight > 0 and totalAccelerationWeight or 1))
-
-                self.position:setAdd(self.velocity, self.timeSinceLastSeen + RADAR_FACING_DELAY - 3)
-                self.position:setAdd(self.acceleration, (self.timeSinceLastSeen + RADAR_FACING_DELAY)^2 / 2)
-            end
-            self.distance = self.position:distanceTo(radar)
-            self.timeSinceLastSeen = self.timeSinceLastSeen + 1
-        end,
-        outputSelf = function (self, startChannel)
-            local latestSighting = self[#self]
-            for i = 0, 8 do
-                print(i%3 + 1)
-                output.setNumber(startChannel + i, latestSighting[i // 3 + 2][i%3 + 1])
-            end
-            output.setBool(startChannel, externalControlSignalA >> 26 & 1 == 1)
-        end
-    }
+function outputTarget (startChannel, target)
+    target = target or EMPTY_TARGET
+    for i = 0, 8 do
+        output.setNumber(startChannel + i, target[#target][i // 3 + 2][i%3 + 1])
+    end
+    output.setBool(startChannel, externalControlBits[14] or externalControlBits[12] and target.distance < range)
 end
 
 -- function replaceTargetIfBetter(currentTarget, possibleTarget)
 --     currentTarget = currentTarget and (possibleTarget.distance < currentTarget.distance - 100 and possibleTarget or currentTarget) or possibleTarget
 -- end
-
-radarPosition = IIVector()
-
-localNewTargetPosition = IIVector()
-newTargetPosition = IIVector()
-
-classes = {}
-track = {}
-attack = {}
-userSelectedTargetMass = 0
 
 -- function applyMassSettings(settingString, classValue)
 --     for massValue in string.gmatch(settingString, "(%d+)") do
@@ -215,23 +137,9 @@ userSelectedTargetMass = 0
 -- applyMassSettings(property.getText('M2'), 3)
 -- applyMassSettings(property.getText('M3'), 3)
 
-searchPatternState = 1
-pastRadarFacings = {0}
-
--- click = false
-
 --[[
     External Control Signal:
         Channel 7:
-            Bit 28: Combat
-            Bit 27: Auto Attack
-            Bit 26: Track Friendly
-            Bit 25: Attack Friendly
-            Bit 24: Track Unkown
-            Bit 23: Attack Unkown
-            Bit 22: Track Hostile
-            Bit 21: Attack Hostile
-            Bit 19 - 20: Class to apply to next clicked target
             Bit 18: Click
             Bit 9 - 17: Click X
             Bit 1 - 8: Click Y
@@ -241,7 +149,30 @@ pastRadarFacings = {0}
 ]]--
 
 POSITION_MASK = 2^24 - 1
-RADAR_OFFSET = {-5, 0, 0}
+EMPTY_TARGET = newTarget({0, IIVector(), IIVector()})
+EMPTY_TARGET.distance = 5000
+
+radarPosition = IIVector()
+
+localNewTargetPosition = IIVector()
+newTargetPosition = IIVector()
+
+classes = {}
+
+targets = {} -- Data stored at key 'mass' should be a list of all targets with that mass
+
+userSelectedTargetMass = 0
+
+externalControlBits = {}
+
+searchPatternState = 1
+pastRadarFacings = {0}
+
+transposedRadarRotationMatrix = {
+    {},
+    {},
+    {}
+}
 
 function onTick()
     radarPosition:setVector(input.getNumber(1), input.getNumber(2), input.getNumber(3))
@@ -250,38 +181,42 @@ function onTick()
     rawYRotation = input.getNumber(5)
     rawZRotation = input.getNumber(6) - PI/2
 
+    for i = 1, 6 do
+        output.setNumber(i, input.getNumber(i))
+    end
+
     local c1, s1, c2, s2, c3, s3 = math.cos(rawXRotation), math.sin(rawXRotation), math.cos(rawYRotation), math.sin(rawYRotation), math.cos(rawZRotation), math.sin(rawZRotation)
     radarRotationMatrix = {
-        IIVector(c3*s1 - c1*s2*s3,  -s1*s2*s3 - c1*c3, -c2*s3),
-        IIVector(c1*c2,           c2*s1,            -s2),
-        IIVector(s1*s3 + c1*s2*c3, c3*s1*s2 - c1*s3,   c2*c3)
+        IIVector(c3*s1 - c1*s2*s3, -s1*s2*s3 - c1*c3, -c2*s3),
+        IIVector(c1*c2,            c2*s1,             -s2),
+        IIVector(s1*s3 + c1*s2*c3, c3*s1*s2 - c1*s3,  c2*c3)
     }
-
-    pastRadarFacing = pastRadarFacings[1] * -PI2 -- Account for delay between sending a new facing value, and getting values created after it has applied.
-    -- All other signals are synced in logic
-    searchPatternState = searchPatternState%SEARCH_PATTERN_SIZE + 1
-    radarFacing = SEARCH_PATTERN[searchPatternState]
-    pastRadarFacings[#pastRadarFacings+1] = radarFacing
-    if #pastRadarFacings > RADAR_FACING_DELAY then
-        table.remove(pastRadarFacings, 1)
+    for i = 1, 3 do
+        for j = 1, 3 do
+            transposedRadarRotationMatrix[i][j] = radarRotationMatrix[j][i]
+        end
     end
-    output.setNumber(32, radarFacing)
 
     externalControlSignalA = inputToBinary(7)
-    for i = 1, 3 do
-        track[i] = externalControlSignalA & TRACK_BITS[i] == TRACK_BITS[i]
-        attack[i] = externalControlSignalA & ATTACK_BITS[i] == ATTACK_BITS[i]
-    end
     externalControlSignalB = inputToBinary(8)
 
-    operation = externalControlSignalA >> 18 & 3
+    for i = 1, 14 do
+        externalControlBits[i] = externalControlSignalA & 1 << (17+i) == 1 << (17+i)
+    end
+
+    operation = externalControlBits[7] and 1 or externalControlBits[8] and 2 or externalControlBits[9] and 3 or 0
+    range = integerToFloat(externalControlSignalB & 2^8 - 1, MIN_RANGE, RANGE_RANGE, MAX_RANGE_INTEGER)
+
     -- wasClicked = click
     -- click = externalControlSignalA >> 17 & 1 == 1
     -- clickX = externalControlSignalA >> 8 & 2^9 - 1
     -- clickY = externalControlSignalA & 2^8 - 1
 
     -- zoom = integerToFloat(externalControlSignalB >> 8 & 2^8 - 1, MIN_ZOOM, ZOOM_RANGE, MAX_ZOOM_INTEGER)
-    -- range = integerToFloat(externalControlSignalB & 2^8 - 1, MIN_RANGE, RANGE_RANGE, MAX_RANGE_INTEGER)
+
+    pastRadarFacing = pastRadarFacings[1] * PI2 -- Account for delay between sending a new facing value, and getting values created after it has applied.
+    -- All other signals are synced in logic
+    searchPatternState = searchPatternState%SEARCH_PATTERN_SIZE + 1
 
     newTargets = {}
     possibleMatches = {}
@@ -298,7 +233,7 @@ function onTick()
 
         newMass = IIfloor(integerToFloat(newMass, MIN_MASS, MASS_RANGE, MAX_MASS_INTEGER) * MASS_RESOLUTION + 0.5) / MASS_RESOLUTION
 
-        if newMass > 0.1 and track[classes[newMass] or 2] then
+        if newMass > 0 and externalControlBits[classes[newMass] or 2] then
             for j = 1, 3 do
                 newPos[j] = integerToFloat(newPos[j] >> MASS_BITS_PER_CHANNEL - 1 & POSITION_MASK, MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER)
             end
@@ -308,8 +243,8 @@ function onTick()
                 math.cos(pastRadarFacing) * newPos[2] + math.sin(pastRadarFacing) * newPos[1],
                 newPos[3]
             )
-            localNewTargetPosition:setAdd(RADAR_OFFSET)
             newTargetPosition:copyVector(localNewTargetPosition)
+            newTargetPosition:setAdd(RADAR_OFFSET)
             newTargetPosition:matrixRotate(radarRotationMatrix)
             newTargetPosition:setAdd(radarPosition)
             newTargets[i] = {newMass, localNewTargetPosition:cloneVector(), newTargetPosition:cloneVector()}
@@ -350,8 +285,11 @@ function onTick()
 
     for targetMass, targetMassGroup in pairs(targets) do
         for targetKey, target in pairs(targetMassGroup) do
-            target:update(radarPosition)
-            if attack[classes[targetMass] or 2] and target.distance < integerToFloat(externalControlSignalB & 2^8 - 1, MIN_RANGE, RANGE_RANGE, MAX_RANGE_INTEGER) then -- Check if target meets requirements for being fired upon
+            target:update()
+            if userSelectedTargetKey == targetKey then
+                manualRadarFacing = math.atan(target.localPosition[2], target.localPosition[1])/PI2
+            end
+            if externalControlBits[(classes[targetMass] or 2) + 3] then -- Check if target meets requirements for being fired upon
                 -- Decide if any of the currently selected targets should be replaced with this one
                 -- It is better to shoot a target that is slightly less important than to constantly swap and never shoot, so only switch targets if the current one is wrong enough
                 upperTarget = target.localPosition[3] > -5 and (upperTarget and target.distance < upperTarget.distance - 100 and target or upperTarget or target) or upperTarget
@@ -363,12 +301,15 @@ function onTick()
         end
     end
 
-    if upperTarget then
-        upperTarget:outputSelf(13)
+    outputTarget(13, upperTarget)
+    outputTarget(22, lowerTarget)
+
+    radarFacing = externalControlBits[11] and manualRadarFacing or SEARCH_PATTERN[searchPatternState]
+    pastRadarFacings[#pastRadarFacings+1] = radarFacing
+    if #pastRadarFacings > RADAR_FACING_DELAY then
+        table.remove(pastRadarFacings, 1)
     end
-    if lowerTarget then
-        lowerTarget:outputSelf(22)
-    end
+    output.setNumber(32, -radarFacing)
 end
 
 function onDraw()
@@ -378,6 +319,7 @@ function onDraw()
         for targetKey, target in pairs(targetMassGroup) do
             local drawSize, positionScreenX, positionScreenY = IImin(IImax(targetMass/10000, 2.5), 10), map.mapToScreen(radarPosition[1], radarPosition[2], integerToFloat(externalControlSignalB >> 8 & 2^8 - 1, MIN_ZOOM, ZOOM_RANGE, MAX_ZOOM_INTEGER), SCREEN_WIDTH, SCREEN_HEIGHT, target.position[1], target.position[2])
             screen.setColor(TARGET_COLORS[classes[targetMass] or 2]:getVector()) -- Color the target based on what class it falls into
+
             -- screen.drawText(positionScreenX, positionScreenY, string.format('%.0f', target.mass))
             screen.drawCircleF(positionScreenX, positionScreenY, drawSize)
 

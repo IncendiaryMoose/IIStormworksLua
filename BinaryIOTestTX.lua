@@ -63,7 +63,7 @@ function onTick()
     for index, value in ipairs(buttons) do
         binaryVal = binaryVal << 1
         binaryVal = (value and 1 or 0) | binaryVal
-        local bX, bY = (index-1)*5 + 1, 17
+        local bX, bY = (index-1)*5 + 1, 25
         if click and not wasClick and clickX >= bX and clickX <= bX + 4 and clickY >= bY and clickY <= bY + 8 then
             buttons[index] = not value
         end
@@ -84,7 +84,7 @@ function onDraw()
     --     str = str..((encodedStr & mask == mask) and '1' or '0')
     -- end
     screen.drawText(1, 1, str..strToSend)
-    screen.drawText(1, 17, 'Encoded bits: ')
+    screen.drawText(1, 17, 'Encoded Number: '..encodedVal)
     for index, value in ipairs(buttons) do
         screen.drawText((index-1)*5 + 1, 25, value and '1' or '0')
     end

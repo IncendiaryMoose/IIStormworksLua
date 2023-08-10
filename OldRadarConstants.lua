@@ -83,21 +83,6 @@ SEARCH_PATTERN_SIZE = #SEARCH_PATTERN
 RADAR_FACING_DELAY = 5
 ---@endsection
 
----@section TRACK_BITS
-TRACK_BITS = {
-    1 << 25,
-    1 << 23,
-    1 << 21
-}
-ATTACK_BITS = {
-    1 << 24,
-    1 << 22,
-    1 << 20
-}
--- Bit 26: Track Friendly
--- Bit 25: Attack Friendly
--- Bit 24: Track Unkown
--- Bit 23: Attack Unkown
--- Bit 22: Track Hostile
--- Bit 21: Attack Hostile
+---@section RADAR_OFFSET
+RADAR_OFFSET = {-5, 0, 0}
 ---@endsection

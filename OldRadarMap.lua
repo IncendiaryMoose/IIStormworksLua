@@ -42,78 +42,29 @@ require('II_SmallVectorMath')
 require('II_RenderEngine')
 require('OldRadarConstants')
 
-minDist = 1750
-minSeperation = 10
-distanceSeperationRatio = 0.1
-maxAge = 300
-targetSize = 2
-
 radarPosition = IIVector()
 
-screenClickPos = IIVector()
-worldClickPos = IIVector()
-
-targets = {}
 function onTick()
-    -- screenClickPos:set(input.getNumber(8)%1000, math.floor((input.getNumber(8)%1000000)/1000))
-    -- click = math.floor(input.getNumber(8)/1000000) == 1
-    -- worldClick = click and screenClickPos.x > 45 and screenClickPos.x < SCREEN_WIDTH-45
+    radarPosition:setVector(input.getNumber(1), input.getNumber(2), input.getNumber(3))
 
-    radarPosition:setVector(input.getNumber(8), input.getNumber(12), input.getNumber(16))
-
-    -- radarRotation:setVector(input.getNumber(20), input.getNumber(24), input.getNumber(28) - PI/2)
-
-    rawXRotation = input.getNumber(20)
-    rawYRotation = input.getNumber(24)
-    rawZRotation = input.getNumber(28) - PI/2
+    rawXRotation = input.getNumber(4)
+    rawYRotation = input.getNumber(5)
+    rawZRotation = input.getNumber(6) - PI/2
 
     local c1, s1, c2, s2, c3, s3 = math.cos(rawXRotation), math.sin(rawXRotation), math.cos(rawYRotation), math.sin(rawYRotation), math.cos(rawZRotation), math.sin(rawZRotation)
-    local c3s1, c1s2 = c3*s1, c1*s2
-    radarRotationMatrix = {
-        IIVector(c3s1 - c1s2*s3,  -s1*s2*s3 - c1*c3, -c2*s3),
-        IIVector(c1*c2,           c2*s1,            -s2),
-        IIVector(s1*s3 + c1s2*c3, c3s1*s2 - c1*s3,   c2*c3)
-    }
+    vehicleHeading = math.atan(c1*c2, c3*s1 - c1*s2*s3)
 
-    radarRotation = math.atan(c1*c2, c3s1 - c1s2*s3)
-    externalControlSignalB = inputToBinary(32)
+    radarFacing = input.getNumber(7) * -PI2 + vehicleHeading
+
+    externalControlSignalB = inputToBinary(8)
     zoom = integerToFloat(externalControlSignalB >> 8, MIN_ZOOM, ZOOM_RANGE, MAX_ZOOM_INTEGER)
-    range = integerToFloat(externalControlSignalB & 0xFF, MIN_RANGE, RANGE_RANGE, MAX_RANGE_INTEGER)
-
-    timeSinceUpdate = input.getNumber(4)
-    if timeSinceUpdate == 0 then
-        for i = 0, 7, 1 do
-            local distance, azimuth, elevation = input.getNumber(i*4+1), input.getNumber(i*4+2)*PI2, input.getNumber(i*4+3)*PI2
-            if distance == 0 then
-                break
-            end
-            if distance > minDist then
-                local targetPosition = IIVector(
-                    distance * math.sin(azimuth) * math.cos(elevation),
-                    distance * math.cos(azimuth) * math.cos(elevation),
-                    distance * math.sin(elevation)
-                )
-                targetPosition:matrixRotate(radarRotationMatrix)
-                targetPosition:setAdd(radarPosition)
-                for targetIndex, target in ipairs(targets) do
-                    if targetPosition:distanceTo(target.position) < minSeperation + distance*distanceSeperationRatio then
-                        target.age = 0
-                        target.position:copyVector(targetPosition)
-                        goto skipTarget
-                    end
-                end
-                table.insert(targets, {position = targetPosition:cloneVector(), age = 0})
-            end
-            ::skipTarget::
-        end
-    end
-    for i = #targets, 1, -1 do
-        targets[i].age = targets[i].age + 1
-        if targets[i].age > maxAge then
-            table.remove(targets, i)
-        end
-    end
+    range = toScreen(integerToFloat(externalControlSignalB & 0xFF, MIN_RANGE, RANGE_RANGE, MAX_RANGE_INTEGER))
 end
+
+SCREEN_WIDTH_MID = SCREEN_WIDTH/2
+SCREEN_HEIGHT_MID = SCREEN_HEIGHT/2
+RADAR_FOV = 0.125 * PI
+
 function onDraw()
     screen.setMapColorGrass(75, 75, 75)
 	screen.setMapColorLand(50, 50, 50)
@@ -123,16 +74,20 @@ function onDraw()
 	screen.setMapColorShallows(50, 50, 100)
 
 	screen.drawMap(radarPosition[1], radarPosition[2], zoom)
-    screen.setColor(0, 15, 100, 255)
-    for targetIndex, target in ipairs(targets) do
-        local pixelX, pixelY = map.mapToScreen(radarPosition[1], radarPosition[2], zoom, SCREEN_WIDTH, SCREEN_HEIGHT, target.position[1], target.position[2])
-        screen.drawCircleF(pixelX, pixelY, targetSize)
-    end
+
     screen.setColor(255, 0, 0, 50)
-    screen.drawCircle(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, toScreen(RANGE_RANGE + MIN_RANGE))
-    screen.drawCircleF(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, toScreen(range))
+    screen.drawCircle(SCREEN_WIDTH_MID, SCREEN_HEIGHT_MID, toScreen(RANGE_RANGE + MIN_RANGE))
+    screen.drawCircleF(SCREEN_WIDTH_MID, SCREEN_HEIGHT_MID, range)
+
     screen.setColor(255, 255, 255)
-    drawArrow(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 15, radarRotation)
+    drawArrow(SCREEN_WIDTH_MID, SCREEN_HEIGHT_MID, 15, vehicleHeading)
+
+    screen.setColor(0, 255, 0, 50)
+    screen.drawTriangleF(
+        SCREEN_WIDTH_MID, SCREEN_HEIGHT_MID,
+        SCREEN_WIDTH_MID + math.cos(radarFacing - RADAR_FOV) * range, SCREEN_HEIGHT_MID - math.sin(radarFacing - RADAR_FOV) * range,
+        SCREEN_WIDTH_MID + math.cos(radarFacing + RADAR_FOV) * range, SCREEN_HEIGHT_MID - math.sin(radarFacing + RADAR_FOV) * range
+    )
 end
 
 function toScreen(n)
