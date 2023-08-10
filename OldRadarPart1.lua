@@ -52,7 +52,7 @@ require('II_BinaryIO')
 require('II_IO')
 require('OldRadarConstants')
 
-filterMassValues =
+filterMassValues = -- TODO: Update to tenths resolution and re-introduce check
 {
     12, 13, --Player (Technically 12.5)
     20,   --Lifesaver
@@ -85,6 +85,7 @@ excludeMasses = {}
 for index, value in ipairs(filterMassValues) do
     excludeMasses[value] = true
 end
+
 function onTick()
     clearOutputs()
     for i = 0, 7 do
@@ -103,9 +104,21 @@ function onTick()
                 local bitMask = 1 << (MASS_BITS - j)
                 outputBools[j + i*4] = massInteger & bitMask == bitMask
             end
-            outputNumbers[i*3 +  9] = binaryToOutput(((massInteger >> (MASS_BITS - 5) & 1) << 31) | floatToInteger(targetPosition[1], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger >> MASS_BITS_PER_CHANNEL*2 & MASS_MASK))
-            outputNumbers[i*3 + 10] = binaryToOutput(((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL) & 1) << 31) | floatToInteger(targetPosition[2], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger >> MASS_BITS_PER_CHANNEL & MASS_MASK))
-            outputNumbers[i*3 + 11] = binaryToOutput(((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL*2) & 1) << 31) | floatToInteger(targetPosition[3], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1) | (massInteger & MASS_MASK))
+            outputNumbers[i*3 +  9] = binaryToOutput(
+                ((massInteger >> (MASS_BITS - 5) & 1) << 31)
+                | floatToInteger(targetPosition[1], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
+                | (massInteger >> MASS_BITS_PER_CHANNEL*2 & MASS_MASK)
+            )
+            outputNumbers[i*3 + 10] = binaryToOutput(
+                ((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL) & 1) << 31)
+                | floatToInteger(targetPosition[2], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
+                | (massInteger >> MASS_BITS_PER_CHANNEL & MASS_MASK)
+            )
+            outputNumbers[i*3 + 11] = binaryToOutput(
+                ((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL*2) & 1) << 31)
+                | floatToInteger(targetPosition[3], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
+                | (massInteger & MASS_MASK)
+            )
         end
     end
     setOutputs()

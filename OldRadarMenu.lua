@@ -137,16 +137,6 @@ function onTick()
 end
 
 function onDraw()
-    --[[
-    screen.setMapColorGrass(75, 75, 75)
-	screen.setMapColorLand(50, 50, 50)
-	screen.setMapColorOcean(25, 25, 75)
-	screen.setMapColorSand(100, 100, 100)
-	screen.setMapColorSnow(100, 100, 100)
-	screen.setMapColorShallows(50, 50, 100)
-
-	screen.drawMap(vehiclePosition.x, vehiclePosition.y, zoom)]]
-
     screen.setColor(15, 15, 25)
     screen.drawRectF(SCREEN_WIDTH - 45, 0, 45, SCREEN_HEIGHT)
 
@@ -187,6 +177,7 @@ function onDraw()
 
     setDrawColor(purpleOff)
     screen.drawRect(SCREEN_WIDTH - 44, 116, 42, 42)
+
     for b, button in ipairs(buttonGroups[9]) do
         button:update(click, wasClick, clickX, clickY)
     end

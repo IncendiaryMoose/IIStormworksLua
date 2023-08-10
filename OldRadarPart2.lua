@@ -96,11 +96,11 @@ end
 
     Script requirements:
         This script must be capable of the following:
-            Track targets using mass to reduce distance checks
-            Give targets a priority based on potential danger
-            Distribute target data to several weapon scripts based on what a weapon can aim at
+            Track targets using mass to reduce distance checks - Done
+            Give targets a priority based on potential danger - Cancled for now
+            Distribute target data to several weapon scripts based on what a weapon can aim at - Done for Spearhead only
                 This can be done internally using a list of weapon position offsets and range of motion, or by allowing weapons to send requests for certain targets.
-            Maybe allow aiming radar in a special single-target mode?
+            Maybe allow aiming radar in a special single-target mode? -- Done
 
     Data output:
         How should the script deal with the need to output multiple targets to different weapons?
@@ -122,10 +122,6 @@ function outputTarget (startChannel, target)
     end
     output.setBool(startChannel, externalControlBits[14] or externalControlBits[12] and target.distance < range)
 end
-
--- function replaceTargetIfBetter(currentTarget, possibleTarget)
---     currentTarget = currentTarget and (possibleTarget.distance < currentTarget.distance - 100 and possibleTarget or currentTarget) or possibleTarget
--- end
 
 -- function applyMassSettings(settingString, classValue)
 --     for massValue in string.gmatch(settingString, "(%d+)") do
@@ -243,6 +239,7 @@ function onTick()
                 math.cos(pastRadarFacing) * newPos[2] + math.sin(pastRadarFacing) * newPos[1],
                 newPos[3]
             )
+
             newTargetPosition:copyVector(localNewTargetPosition)
             newTargetPosition:setAdd(RADAR_OFFSET)
             newTargetPosition:matrixRotate(radarRotationMatrix)
@@ -322,10 +319,9 @@ function onDraw()
 
             -- screen.drawText(positionScreenX, positionScreenY, string.format('%.0f', target.mass))
             screen.drawCircleF(positionScreenX, positionScreenY, drawSize)
-
             screen.setColor(userSelectedTargetKey == targetKey and 255 or 0, lowerTarget == target and 255 or 0, upperTarget == target and 255 or 0) -- Highlight Depending on current targets
-
             screen.drawCircle(positionScreenX, positionScreenY, drawSize + 1)
+
             if externalControlSignalA >> 17 & 1 == 1 then -- If the user has clicked the screen, check if this is the target that was clicked
                 local clickDistance = ((positionScreenX - (externalControlSignalA >> 8 & 2^9 - 1))^2 + (positionScreenY - (externalControlSignalA & 2^8 - 1))^2)^0.5
                 if clickDistance < nearestClickDistance then
