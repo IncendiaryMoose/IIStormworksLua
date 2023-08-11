@@ -33,41 +33,13 @@ do
     -- Runs every tick just before onTick; allows you to simulate the inputs changing
     ---@param simulator Simulator Use simulator:<function>() to set inputs etc.
     ---@param ticks     number Number of ticks since simulator started
-    tarX = 1200
-    tarY = 0
-    tarZ = 500
-    selfX = 0
-    tarDist = 0
-    function onLBSimulatorTick(simulator, tocks)
-        tocks = (tocks%1000)/1000
-        selfX = 1200*math.cos(tocks*math.pi*2)+1200
-        if true then
-            tarX = 500*math.cos(tocks*math.pi*2)+1000
-            tarY = 50*math.cos(tocks*math.pi*2)
-            tarZ = 500*math.sin(tocks*math.pi*2)+500
-        end
-        tarDist = (tarX^2+tarZ^2)^0.5
-        -- touchscreen defaults
-        elevationAngle = math.asin((tarZ)/tarDist)
-        local screenConnection = simulator:getTouchScreen(1)
-        simulator:setInputBool(1, screenConnection.isTouched)
-        simulator:setInputNumber(1, 0)
-        simulator:setInputNumber(2, 0)
-        simulator:setInputNumber(3, 0)
-        simulator:setInputNumber(4, 0)
-        simulator:setInputNumber(5, 0)
-        simulator:setInputNumber(6, math.pi*simulator:getSlider(1))
-        simulator:setInputNumber(9, tarX)
-        simulator:setInputNumber(10, 0)
-        simulator:setInputNumber(11, tarZ)
-        simulator:setInputBool(27, simulator:getIsToggled(1))
-        simulator:setInputBool(32, true)
+    function onLBSimulatorTick(simulator, ticks)
+
     end;
 end
 ---@endsection
 
 require('II_SmallVectorMath')
-require('II_IO')
 require('OldRadarConstants')
 require('II_Ballistics')
 
@@ -87,21 +59,14 @@ TURRET_YAW_OFFSET = property.getNumber('Turret Mount Yaw Offset')
 TURRET_OFFSET = IIVector(0, 0, 0)
 LATENCY = 5
 
-initialVelocity = IIVector()
-initialPosition = IIVector()
-
 turretOffsetVector = IIVector((PI2/4)*TURRET_ROLL_OFFSET, (PI2/4)*TURRET_PITCH_OFFSET, (PI2/4)*TURRET_YAW_OFFSET)
-
-referenceRotation = IIVector()
-adjustedRotation = IIVector()
-relativeRotation = IIVector()
-vehicleRotation = IIVector()
 
 target = {
     position = IIVector(),
     predictedPosition = IIVector(),
     velocity = IIVector(),
     acceleration = IIVector(),
+    distance = 0,
     timeSinceLastSeen = 0,
     positionInTicks = function (self, t)
         self.predictedPosition:copyVector(self.position)
@@ -110,6 +75,7 @@ target = {
         self.predictedPosition:setAdd(turret.position, -1)
         self.predictedPosition:matrixRotate(transposedRadarRotationMatrix)
         self.predictedPosition:setAdd(TURRET_OFFSET)
+        self.distance = self.predictedPosition:magnitude()
     end
 }
 
@@ -156,22 +122,23 @@ turret = {
     end
 }
 
-travelTime = 60
-range = false
-accuracy = 0
-efficiency = 0
-vehicleRotationVelocity = IIVector()
-previousVehicleRotation = IIVector()
-rotationDelay = property.getNumber('Rot Delay')
-positionDelay = property.getNumber('Pos Delay')
-accuracyLevel = property.getNumber('Accuracy')
+turretRotationUnitVector = IIVector()
+relativeElevation = 0
+relativeAzimuth = 0
 
 radarPosition = IIVector()
 transposedRadarRotationMatrix = {{},{},{}}
 
+-- TODO: Integrate with turret functions:
+    -- Deadzones
+    -- Range check
+    -- Fire order
+    -- Reloading
+    -- Repairing
+
 function onTick()
-    clearOutputs()
-    if true then
+    canHit = false
+    if input.getBool(1) then
         radarPosition:setVector(input.getNumber(1), input.getNumber(2), input.getNumber(3))
 
         rawXRotation = input.getNumber(4)
@@ -194,17 +161,9 @@ function onTick()
         -- windSpd = input.getNumber(8) / 60
         -- terminalVelocity:setVector(math.sin(windDir)*windSpd, math.cos(windDir)*windSpd, g/drag)
 
-        target.position:setVector(1500, 500, 800)
-        target.velocity:setVector(5, 1, -2)
-        target.acceleration:setVector(0, 0, 0)
-        timeToTarget = target.predictedPosition:magnitude()/(MUZZLE_VELOCITY + turret.velocity:dot(target.predictedPosition) / target.predictedPosition:magnitude() - 1) -- TODO: Make this first guess better, include vehicle speed
-        target:positionInTicks(timeToTarget)
-        for j = 1, 8 do
-            turretPitch, turretYaw, timeToTarget = newtonMethod(IIVector(1, 5, 9), target.predictedPosition, timeToTarget)
-            print(timeToTarget)
-            target:positionInTicks(timeToTarget)
-        end
-
+        -- Make an initial guess for what time the bullet will hit the target.
+        -- This is done by dividing the distance by the muzzle velocity offset by the dot of the turret's velocity and the distance.
+        -- The solver uses Newton's method, so this guess only needs to be closer to the correct answer than the wrong one.
         if input.getBool(TARGET_INDEX) then
             target.position:setVector(input.getNumber(TARGET_INDEX), input.getNumber(TARGET_INDEX+1), input.getNumber(TARGET_INDEX+2))
             target.velocity:setVector(input.getNumber(TARGET_INDEX+3), input.getNumber(TARGET_INDEX+4), input.getNumber(TARGET_INDEX+5))
@@ -212,73 +171,20 @@ function onTick()
             target.timeSinceLastSeen = 0
         end
         target:positionInTicks(LATENCY)
-        target.distance = target.predictedPosition:magnitude()
+        target.position:copyVector(target.predictedPosition)
+        predictedTime = -IIlog(1 - DRAG * target.distance / (MUZZLE_VELOCITY + turret.velocity:dot(target.predictedPosition / target.distance))) / DRAG
 
-        referenceRotation:setVector(0, arcsin((target.predictedPosition[3]) / target.distance), math.atan(target.predictedPosition[2], target.predictedPosition[1]))
-        adjustedRotation:copyVector(referenceRotation)
-        canHit = false
-        if target.distance < MAX_RANGE then
-            
-        end
-        
-        -- relativeRotation:setVector(1, -adjustedRotation.z, adjustedRotation.x)
-        -- relativeRotation:toCartesian()
-        -- relativeRotation:rotate3D(vehicleRotation, true)
-        -- relativeRotation:rotate3D(turretOffsetVector)
-        -- outputNumbers[32] = math.asin(relativeRotation.z)
-        -- outputNumbers[31] = math.atan(relativeRotation.x, relativeRotation.y)
-        -- outputNumbers[30] = target.distance
-        -- outputBools[31] = canHit
-    end
-    setOutputs()
-end
---[[
-function onDraw()
-    screen.setColor(255, 255, 255)
-    screen.drawText(1, 2, string.format('Efficiency:%.0f%%', efficiency))
-    screen.drawText(1, 9, string.format('Accuracy:%.3f', accuracy))
-    screen.drawText(1, 16, string.format('Travel Time:%.3f', travelTime))
-end
---]]
-function ballistic()
-    local attempts, finalError, finalTime = 0, 0, 0
-    while true do
-        attempts = attempts + 1
-        if attempts > maxAttempts then break end
-
-        initialVelocity:setVector(0, muzzleVelocity, 0)
-        initialVelocity:rotate3D(adjustedRotation)
-
-        initialPosition:setVector(0, barrelLength, 0)
-        initialPosition:rotate3D(adjustedRotation)
-
-        local bullet = newBullet(initialPosition, initialVelocity)
-        local approxTime = 0
-        local steps = 0
-
-        while true do
-            steps = steps + 1
-            if steps > maxSteps or approxTime > lifespan then break end
-
-            local previousTargetError, timeAdjust = bullet.targetError, bullet.targetError/bullet.speed
-            bullet:positionInTicks(approxTime + timeAdjust)
-
-            if previousTargetError - bullet.targetError <= 0 then break end
-
-            approxTime = approxTime + timeAdjust
-        end
-
-        bullet:positionInTicks(approxTime)
-
-        adjustedRotation.x = adjustedRotation.x + (referenceRotation.x - math.asin(bullet.position.z/bullet.distance))*1.05
-        adjustedRotation.z = adjustedRotation.z - (referenceRotation.z + math.atan(bullet.position.x, bullet.position.y))
-
-        finalError = bullet.targetError
-        finalTime = approxTime
-
-        if finalError < accuracyLevel then
-            break
+        elevation, azimuth, predictedTime = newtonMethodBallistics(turret.velocity, target, predictedTime)
+        canHit = predictedTime > 0
+        if canHit then
+            local elevationHorizontal = math.cos(elevation)
+            turretRotationUnitVector:setVector(math.cos(azimuth) * elevationHorizontal, math.sin(azimuth) * elevationHorizontal, math.sin(elevation))
+            turretRotationUnitVector:matrixRotate(transposedRadarRotationMatrix)
+            relativeElevation = arcsin(turretRotationUnitVector[3])
+            relativeAzimuth = math.atan(turretRotationUnitVector[2], turretRotationUnitVector[1])
         end
     end
-    return finalTime, finalError, attempts < maxAttempts, (maxAttempts - attempts)/maxAttempts*100
+    output.setNumber(1, relativeAzimuth)
+    output.setNumber(2, relativeElevation)
+    output.setBool(1, canHit and input.getBool(TARGET_INDEX + 1))
 end
