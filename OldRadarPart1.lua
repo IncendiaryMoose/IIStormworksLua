@@ -98,7 +98,7 @@ function onTick()
             targetPosition:toCartesian()
             targetPosition[3] = targetPosition[3] - 0.5
 
-            local massInteger = floatToInteger(distance * input.getNumber(i*4+2), MIN_MASS, MASS_RANGE, MAX_MASS_INTEGER)
+            local massInteger = fastFloatToInteger(distance * input.getNumber(i*4+2), 0, MASS_FLOAT_TO_INT_RATIO, MAX_MASS_INTEGER)
 
             for j = 1, 4 do
                 local bitMask = 1 << (MASS_BITS - j)
@@ -106,17 +106,17 @@ function onTick()
             end
             outputNumbers[i*3 +  9] = binaryToOutput(
                 ((massInteger >> (MASS_BITS - 5) & 1) << 31)
-                | floatToInteger(targetPosition[1], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
+                | fastFloatToInteger(targetPosition[1], MIN_POSITION, POSITION_FLOAT_TO_INT_RATIO, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
                 | (massInteger >> MASS_BITS_PER_CHANNEL*2 & MASS_MASK)
             )
             outputNumbers[i*3 + 10] = binaryToOutput(
                 ((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL) & 1) << 31)
-                | floatToInteger(targetPosition[2], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
+                | fastFloatToInteger(targetPosition[2], MIN_POSITION, POSITION_FLOAT_TO_INT_RATIO, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
                 | (massInteger >> MASS_BITS_PER_CHANNEL & MASS_MASK)
             )
             outputNumbers[i*3 + 11] = binaryToOutput(
                 ((massInteger >> (MASS_BITS - 5 - MASS_BITS_PER_CHANNEL*2) & 1) << 31)
-                | floatToInteger(targetPosition[3], MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
+                | fastFloatToInteger(targetPosition[3], MIN_POSITION, POSITION_FLOAT_TO_INT_RATIO, MAX_POSITION_INTEGER) << (MASS_BITS_PER_CHANNEL - 1)
                 | (massInteger & MASS_MASK)
             )
         end

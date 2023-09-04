@@ -33,7 +33,7 @@ do
         simulator:setInputNumber(4, 0)
 
 
-        local MassInteger = floatToInteger(2000, MIN_MASS, MASS_RANGE, MAX_MASS_INTEGER)
+        local MassInteger = floatToInteger(2000, 0, MASS_RANGE, MAX_MASS_INTEGER)
         TargetPosition = {600, 0, 0}
         if pastRadarFacing == 0 then
             for J = 1, 4 do
@@ -197,11 +197,12 @@ function onTick()
     externalControlSignalB = inputToBinary(8)
 
     for i = 1, 14 do
-        externalControlBits[i] = externalControlSignalA & 1 << (17+i) == 1 << (17+i)
+        externalControlBits[i] = externalControlSignalA >> (17+i) & 1 == 1
     end
 
     operation = externalControlBits[7] and 1 or externalControlBits[8] and 2 or externalControlBits[9] and 3 or 0
-    range = integerToFloat(externalControlSignalB & 2^8 - 1, MIN_RANGE, RANGE_RANGE, MAX_RANGE_INTEGER)
+    -- range = integerToFloat(externalControlSignalB & 2^8 - 1, MIN_RANGE, RANGE_RANGE, MAX_RANGE_INTEGER)
+    range = fastIntegerToFloat(externalControlSignalB & 2^8 - 1, MIN_RANGE, RANGE_INT_TO_FLOAT_RATIO)
 
     -- wasClicked = click
     -- click = externalControlSignalA >> 17 & 1 == 1
@@ -227,11 +228,11 @@ function onTick()
             newMass = newMass | (input.getBool(j + i*4) and 1 << (MASS_BITS - j) or 0)
         end
 
-        newMass = IIfloor(integerToFloat(newMass, MIN_MASS, MASS_RANGE, MAX_MASS_INTEGER) * MASS_RESOLUTION + 0.5) / MASS_RESOLUTION
+        newMass = IIfloor(fastIntegerToFloat(newMass, 0, MASS_INT_TO_FLOAT_RATIO) * MASS_RESOLUTION + 0.5) / MASS_RESOLUTION
 
         if newMass > 0 and externalControlBits[classes[newMass] or 2] then
             for j = 1, 3 do
-                newPos[j] = integerToFloat(newPos[j] >> MASS_BITS_PER_CHANNEL - 1 & POSITION_MASK, MIN_POSITION, POSITION_RANGE, MAX_POSITION_INTEGER)
+                newPos[j] = fastIntegerToFloat(newPos[j] >> MASS_BITS_PER_CHANNEL - 1 & POSITION_MASK, MIN_POSITION, POSITION_INT_TO_FLOAT_RATIO)
             end
 
             localNewTargetPosition:setVector(
@@ -289,6 +290,17 @@ function onTick()
             if externalControlBits[(classes[targetMass] or 2) + 3] then -- Check if target meets requirements for being fired upon
                 -- Decide if any of the currently selected targets should be replaced with this one
                 -- It is better to shoot a target that is slightly less important than to constantly swap and never shoot, so only switch targets if the current one is wrong enough
+                --[[ The ternary is the same as the following:
+                    if target.localPosition[3] > -5 then
+                        if upperTarget then
+                            if target.distance < upperTarget.distance - 100 then
+                                upperTarget = target
+                            end
+                        else
+                            upperTarget = target
+                        end
+                    end
+                ]]--
                 upperTarget = target.localPosition[3] > -5 and (upperTarget and target.distance < upperTarget.distance - 100 and target or upperTarget or target) or upperTarget
                 lowerTarget = target.localPosition[3] < 5 and (lowerTarget and target.distance < lowerTarget.distance - 100 and target or lowerTarget or target) or lowerTarget
             end
@@ -314,7 +326,7 @@ function onDraw()
     nearestClickDistance = MAX_CLICK_DISTANCE
     for targetMass, targetMassGroup in pairs(targets) do
         for targetKey, target in pairs(targetMassGroup) do
-            local drawSize, positionScreenX, positionScreenY = IImin(IImax(targetMass/10000, 2.5), 10), map.mapToScreen(radarPosition[1], radarPosition[2], integerToFloat(externalControlSignalB >> 8 & 2^8 - 1, MIN_ZOOM, ZOOM_RANGE, MAX_ZOOM_INTEGER), SCREEN_WIDTH, SCREEN_HEIGHT, target.position[1], target.position[2])
+            local drawSize, positionScreenX, positionScreenY = IImin(IImax(targetMass/10000, 2.5), 10), map.mapToScreen(radarPosition[1], radarPosition[2], fastIntegerToFloat(externalControlSignalB >> 8 & 2^8 - 1, MIN_ZOOM, ZOOM_INT_TO_FLOAT_RATIO), SCREEN_WIDTH, SCREEN_HEIGHT, target.position[1], target.position[2])
             screen.setColor(TARGET_COLORS[classes[targetMass] or 2]:getVector()) -- Color the target based on what class it falls into
 
             -- screen.drawText(positionScreenX, positionScreenY, string.format('%.0f', target.mass))
