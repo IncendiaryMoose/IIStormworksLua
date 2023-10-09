@@ -13,9 +13,15 @@ MIN_DISTANCE = property.getNumber('Min Distance')
 POSITION_RANGE = 6000
 ---@endsection
 
----@section MAX_POSITION_INTEGER
+---@section POSITION_BITS
 POSITION_BITS = 24
+---@endsection
+
+---@section MAX_POSITION_INTEGER
 MAX_POSITION_INTEGER = 2^POSITION_BITS - 2^(POSITION_BITS - 8) - 1
+---@endsection
+
+---@section MIN_POSITION
 MIN_POSITION = -3000
 ---@endsection
 
@@ -23,9 +29,15 @@ MIN_POSITION = -3000
 MASS_RESOLUTION = 10
 ---@endsection
 
----@section MAX_MASS_INTEGER
+---@section MASS_BITS_PER_CHANNEL
 MASS_BITS_PER_CHANNEL = 32 - POSITION_BITS
+---@endsection
+
+---@section MASS_BITS
 MASS_BITS = MASS_BITS_PER_CHANNEL*3 + 4
+---@endsection
+
+---@section MAX_MASS_INTEGER
 MAX_MASS_INTEGER = 2^MASS_BITS - 1
 ---@endsection
 
@@ -37,12 +49,18 @@ MASS_RANGE = MAX_MASS_INTEGER / (MASS_RESOLUTION * 10)
 MASS_MASK = 2^(MASS_BITS_PER_CHANNEL - 1) - 1
 ---@endsection
 
----@section ZOOM_RANGE
+---@section MIN_ZOOM
 MIN_ZOOM = 1
+---@endsection
+
+---@section MIN_RANGE
+MIN_RANGE = 100
+---@endsection
+
+---@section ZOOM_RANGE
 ZOOM_RANGE = 49
 MAX_ZOOM_INTEGER = 2^8 - 1
 
-MIN_RANGE = 100
 RANGE_RANGE = 2900
 MAX_RANGE_INTEGER = 2^8 - 1
 ---@endsection
