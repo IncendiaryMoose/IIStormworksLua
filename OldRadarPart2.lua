@@ -71,67 +71,31 @@ end
 ---@endsection
 
 --[[
-    Perhaps make this able to run in parallel with the weapon scripts?
-    If the weapon script simply stores all 8 positions every tick, this script could give it a list of what indexes to match together to recreate a target once one has been found.
-    This would reduce latency in the targeting script by 1 tick, on a scale of 4-6 ticks already, at the cost of doing more input decoding, storing more values, and making both scripts longer.
-    Another bonus is that the targeting system would not need time to 'learn' a target after targets have switched.
-
-    Option 1:
-        Weapons (This script) will store all radar outputs every tick. Once targeting (The other script) has decided on a target, it will send an encoded list to the weapons script(s).
-        This list will contain indexes to read from to re-create the chosen target, allowing the weapons to have full accsess to all past positions of the target the moment it is chosen.
-        In order to actually get the reduced latency this allows for, the weapons script will need to move to full tracking once a target is chosen, as continuing to rely on the indexes given by
-        the tracking script results in the same latency as running in series.
-
-    Option 2:
-        Weapons (This script) will run tracking code identical to what is in the targeting script. Once targeting has chosen a target, it will send the mass group and key for the target.
-        Because the tracking code is identical, the weapons script(s) should have an identical target stored there.
-
-    Problem:
-        Weapons needs additional inputs for turret position and rotation, meaning it is likely that not all radar outputs can be kept.
-        This whole system will add more computations, and at best save 1 tick of latency in a system that aims to lead 100s of ticks in the future.
-
-    Conclusion:
-        Parallel is not worth it unless there is some way around the additional inputs required by the weapons scripts.
-        The re-learing period that comes with switching targets in the series system can be solved by using extra channels to transmit multiple past positions when targets are switched.
-
-    Script requirements:
-        This script must be capable of the following:
-            Track targets using mass to reduce distance checks - Done
-            Give targets a priority based on potential danger - Cancled for now
-            Distribute target data to several weapon scripts based on what a weapon can aim at - Done for Spearhead only
-                This can be done internally using a list of weapon position offsets and range of motion, or by allowing weapons to send requests for certain targets.
-            Maybe allow aiming radar in a special single-target mode? -- Done
-
-    Data output:
-        How should the script deal with the need to output multiple targets to different weapons?
-        Simple method is to divide avalible channels by #weapons and give each weapon that many channels worth of data,
-        however this stops working with large quantities of weapons.
-        One solution is to further split this script, giving each weapon its own targeting system. At that point, perhaps just give each weapon its own radar?
+    TODO: Test a version with a flattened list for targets, with the nested list only storing keys
+        This might speed up some of the loops, and it will simplify selected targets
 ]]--
 
 require('II_MathHelpers')
 require('II_BinaryIO')
 require('II_SmallVectorMath')
 require('OldRadarConstants')
-require('OldRadarTarget')
+
+function newHistoryPoint(time, position)
+    return {
+        time,
+        position:cloneVector(),
+        IIVector(),
+        IIVector()
+    }
+end
 
 function outputTarget (startChannel, target)
-    target = target or EMPTY_TARGET
+    target = target or {newHistoryPoint(0, IIVector()), distance = 9999}
     for i = 0, 8 do
         output.setNumber(startChannel + i, target[#target][i // 3 + 2][i%3 + 1])
     end
     output.setBool(startChannel, externalControlBits[14] or externalControlBits[12] and target.distance < range)
 end
-
--- function applyMassSettings(settingString, classValue)
---     for massValue in string.gmatch(settingString, "(%d+)") do
---         classes[tonumber(massValue)] = tonumber(classValue)
---     end
--- end
-
--- applyMassSettings(property.getText('M1'), 1)
--- applyMassSettings(property.getText('M2'), 3)
--- applyMassSettings(property.getText('M3'), 3)
 
 --[[
     External Control Signal:
@@ -145,8 +109,6 @@ end
 ]]--
 
 POSITION_MASK = 2^24 - 1
-EMPTY_TARGET = newTarget({0, IIVector(), IIVector()})
-EMPTY_TARGET.distance = 5000
 
 radarPosition = IIVector()
 
@@ -155,7 +117,10 @@ newTargetPosition = IIVector()
 
 classes = {}
 
-targets = {} -- Data stored at key 'mass' should be a list of all targets with that mass
+targets = {{}} -- Data stored at key 'mass' should be a list of all targets with that mass
+
+lowerMass = 1
+upperMass = 1
 
 userSelectedTargetMass = 0
 
@@ -201,15 +166,7 @@ function onTick()
     end
 
     operation = externalControlBits[7] and 1 or externalControlBits[8] and 2 or externalControlBits[9] and 3 or 0
-    -- range = integerToFloat(externalControlSignalB & 2^8 - 1, MIN_RANGE, RANGE_RANGE, MAX_RANGE_INTEGER)
     range = fastIntegerToFloat(externalControlSignalB & 2^8 - 1, MIN_RANGE, RANGE_INT_TO_FLOAT_RATIO)
-
-    -- wasClicked = click
-    -- click = externalControlSignalA >> 17 & 1 == 1
-    -- clickX = externalControlSignalA >> 8 & 2^9 - 1
-    -- clickY = externalControlSignalA & 2^8 - 1
-
-    -- zoom = integerToFloat(externalControlSignalB >> 8 & 2^8 - 1, MIN_ZOOM, ZOOM_RANGE, MAX_ZOOM_INTEGER)
 
     pastRadarFacing = pastRadarFacings[1] * PI2 -- Account for delay between sending a new facing value, and getting values created after it has applied.
     -- All other signals are synced in logic
@@ -278,9 +235,68 @@ function onTick()
     end
 
     for i, remainingTarget in pairs(newTargets) do -- All targets in this table were unable to find a valid match, so add them as new targets.
-        targets[remainingTarget[1]][remainingTarget[3][1]] = newTarget(remainingTarget)
+        targets[remainingTarget[1]][#targets[remainingTarget[1]] + 1] = { -- Fill the first empty spot with the new target
+            newHistoryPoint(0, remainingTarget[3]),
+            position = remainingTarget[3]:cloneVector(),
+            localPosition = remainingTarget[2]:cloneVector(),
+            velocity = IIVector(),
+            acceleration = IIVector(),
+            timeSinceLastSeen = 0,
+            newSighting = function (self, newTargetIndex)
+                local possibleSighting = newTargets[newTargetIndex]
+                if possibleSighting and self.timeSinceLastSeen > 0 then
+
+                    self.localPosition:copyVector(possibleSighting[2])
+
+                    self[#self+1] = newHistoryPoint(self.timeSinceLastSeen, possibleSighting[3])
+                    if #self > 1 then
+                        self.velocity:copyVector(possibleSighting[3])
+                        self.velocity:setAdd(self[#self - 1][2], -1)
+                        self.velocity:setScale(1/self.timeSinceLastSeen)
+                        self[#self][3]:copyVector(self.velocity)
+
+                        if #self > 3 then
+                            self.acceleration:copyVector(self.velocity)
+                            self.acceleration:setAdd(self[#self - 1][3], -1)
+                            self.acceleration:setScale(1/self.timeSinceLastSeen)
+                            self[#self][4]:copyVector(self.acceleration)
+                        end
+                    end
+
+                    self.timeSinceLastSeen = 0
+                    newTargets[newTargetIndex] = nil
+                end
+            end,
+            update = function (self)
+                self.position:copyVector(self[#self][2])
+                if #self > 1 then
+                    self.velocity:setVector(0, 0, 0)
+                    self.acceleration:setVector(0, 0, 0)
+                    local totalWeight, correctedTime = 0, self.timeSinceLastSeen + RADAR_FACING_DELAY - 3
+                    for index, historyPoint in ipairs(self) do
+                        self.velocity:setAdd(historyPoint[3], index * 2)
+                        self.acceleration:setAdd(historyPoint[4], index * 2)
+                        totalWeight = totalWeight + index * 2
+                    end
+
+                    self.velocity:setScale(1 / totalWeight)
+
+                    self.acceleration:setScale(1 / totalWeight)
+
+                    self.position:setAdd(self.velocity, correctedTime)
+                    self.position:setAdd(self.acceleration, correctedTime^2 / 2)
+                    self.localPosition:copyVector(self.position)
+                    self.localPosition:setAdd(radarPosition, -1)
+                    self.localPosition:matrixRotate(transposedRadarRotationMatrix)
+                    self.localPosition:setAdd(RADAR_OFFSET, -1)
+                end
+                self.distance = self.position:distanceTo(radarPosition)
+                self.timeSinceLastSeen = self.timeSinceLastSeen + 1
+            end
+        }
     end
 
+    manualRadarFacing = nil
     for targetMass, targetMassGroup in pairs(targets) do
         for targetKey, target in pairs(targetMassGroup) do
             target:update()
@@ -290,19 +306,16 @@ function onTick()
             if externalControlBits[(classes[targetMass] or 2) + 3] then -- Check if target meets requirements for being fired upon
                 -- Decide if any of the currently selected targets should be replaced with this one
                 -- It is better to shoot a target that is slightly less important than to constantly swap and never shoot, so only switch targets if the current one is wrong enough
-                --[[ The ternary is the same as the following:
-                    if target.localPosition[3] > -5 then
-                        if upperTarget then
-                            if target.distance < upperTarget.distance - 100 then
-                                upperTarget = target
-                            end
-                        else
-                            upperTarget = target
-                        end
-                    end
-                ]]--
-                upperTarget = target.localPosition[3] > -5 and (upperTarget and target.distance < upperTarget.distance - 100 and target or upperTarget or target) or upperTarget
-                lowerTarget = target.localPosition[3] < 5 and (lowerTarget and target.distance < lowerTarget.distance - 100 and target or lowerTarget or target) or lowerTarget
+
+                if target.localPosition[3] > -5 and (targets[upperMass][upperKey] and (targets[upperMass][upperKey].localPosition[3] < -5 or target.distance < targets[upperMass][upperKey].distance - 100) or not targets[upperMass][upperKey]) then
+                    upperMass = targetMass
+                    upperKey = targetKey
+                end
+
+                if target.localPosition[3] < 5 and (targets[lowerMass][lowerKey] and (targets[lowerMass][lowerKey].localPosition[3] > 5 or target.distance < targets[lowerMass][lowerKey].distance - 100) or not targets[lowerMass][lowerKey]) then
+                    lowerMass = targetMass
+                    lowerKey = targetKey
+                end
             end
             if target.timeSinceLastSeen > MAX_TIME_UNSEEN then -- If a target has not been seen for a long time, delete it
                 targets[targetMass][targetKey] = nil
@@ -310,8 +323,8 @@ function onTick()
         end
     end
 
-    outputTarget(13, upperTarget)
-    outputTarget(22, lowerTarget)
+    outputTarget(13, targets[upperMass][upperKey])
+    outputTarget(22, targets[lowerMass][lowerKey])
 
     radarFacing = externalControlBits[11] and manualRadarFacing or SEARCH_PATTERN[searchPatternState]
     pastRadarFacings[#pastRadarFacings+1] = radarFacing
@@ -331,7 +344,7 @@ function onDraw()
 
             -- screen.drawText(positionScreenX, positionScreenY, string.format('%.0f', target.mass))
             screen.drawCircleF(positionScreenX, positionScreenY, drawSize)
-            screen.setColor(userSelectedTargetKey == targetKey and 255 or 0, lowerTarget == target and 255 or 0, upperTarget == target and 255 or 0) -- Highlight Depending on current targets
+            screen.setColor(userSelectedTargetKey == targetKey and 255 or 0, lowerKey == targetKey and 255 or 0, upperKey == targetKey and 255 or 0) -- Highlight Depending on current targets
             screen.drawCircle(positionScreenX, positionScreenY, drawSize + 1)
 
             if externalControlSignalA >> 17 & 1 == 1 then -- If the user has clicked the screen, check if this is the target that was clicked
