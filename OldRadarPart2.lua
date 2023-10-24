@@ -129,11 +129,11 @@ externalControlBits = {}
 searchPatternState = 1
 pastRadarFacings = {0}
 
-transposedRadarRotationMatrix = {
-    {},
-    {},
-    {}
-}
+-- transposedRadarRotationMatrix = {
+--     {},
+--     {},
+--     {}
+-- }
 
 function onTick()
     radarPosition:setVector(input.getNumber(1), input.getNumber(2), input.getNumber(3))
@@ -152,11 +152,11 @@ function onTick()
         IIVector(c1*c2,            c2*s1,             -s2),
         IIVector(s1*s3 + c1*s2*c3, c3*s1*s2 - c1*s3,  c2*c3)
     }
-    for i = 1, 3 do
-        for j = 1, 3 do
-            transposedRadarRotationMatrix[i][j] = radarRotationMatrix[j][i]
-        end
-    end
+    -- for i = 1, 3 do
+    --     for j = 1, 3 do
+    --         transposedRadarRotationMatrix[i][j] = radarRotationMatrix[j][i]
+    --     end
+    -- end
 
     externalControlSignalA = inputToBinary(7)
     externalControlSignalB = inputToBinary(8)
@@ -285,10 +285,12 @@ function onTick()
 
                     self.position:setAdd(self.velocity, correctedTime)
                     self.position:setAdd(self.acceleration, correctedTime^2 / 2)
-                    self.localPosition:copyVector(self.position)
-                    self.localPosition:setAdd(radarPosition, -1)
-                    self.localPosition:matrixRotate(transposedRadarRotationMatrix)
-                    self.localPosition:setAdd(RADAR_OFFSET, -1)
+                    -- Local position is updated for free every sighting, which is once every 8 ticks under normal conditions,
+                    -- so getting it every tick for this much work is probably not worth it
+                    -- self.localPosition:copyVector(self.position)
+                    -- self.localPosition:setAdd(radarPosition, -1)
+                    -- self.localPosition:matrixRotate(transposedRadarRotationMatrix)
+                    -- self.localPosition:setAdd(RADAR_OFFSET, -1)
                 end
                 self.distance = self.position:distanceTo(radarPosition)
                 self.timeSinceLastSeen = self.timeSinceLastSeen + 1
